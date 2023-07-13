@@ -10,7 +10,7 @@ and tools from the greater gRPC ecosystem together with  the
 ## Installation
 
 ```bash
-$ go get -u github.com/gogo/grpc-example
+$ go get -u github.com/paulstuart/grpc-example
 ```
 
 ## Running it
