@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"time"
 
-	pb "github.com/paulstuart/grpc-example/proto"
+	pb "github.com/paulstuart/grpc-example/proto/pkg"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -286,9 +287,9 @@ func (s *Server) UserActivityStream(stream pb.UserService_UserActivityStreamServ
 		}
 
 		response := &pb.UserActivityResponse{
-			UserId:      activity.UserId,
+			UserId:       activity.UserId,
 			Acknowledged: exists,
-			ProcessedAt: timestamppb.New(time.Now()),
+			ProcessedAt:  timestamppb.New(time.Now()),
 		}
 
 		if !exists {
@@ -301,7 +302,9 @@ func (s *Server) UserActivityStream(stream pb.UserService_UserActivityStreamServ
 				user, err := s.storage.GetUser(stream.Context(), activity.UserId)
 				if err == nil {
 					user.LastLogin = activity.Timestamp
-					s.storage.UpdateUser(stream.Context(), user)
+					if err := s.storage.UpdateUser(stream.Context(), user); err != nil {
+						slog.Error("failed to update last login", "user_id", activity.UserId, "error", err)
+					}
 				}
 			}
 		}

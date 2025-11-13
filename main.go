@@ -22,18 +22,58 @@ import (
 
 	"github.com/paulstuart/grpc-example/insecure"
 	"github.com/paulstuart/grpc-example/interceptors"
-	pb "github.com/paulstuart/grpc-example/proto"
+	pb "github.com/paulstuart/grpc-example/proto/pkg"
 	"github.com/paulstuart/grpc-example/server"
 )
 
 var (
-	gRPCPort     = flag.Int("grpc-port", 10000, "The gRPC server port")
-	gatewayPort  = flag.Int("gateway-port", 11000, "The gRPC-Gateway server port")
+	defaultPort = DefaultEnv("GRPC_PORT", 10000)
+	defaultRest = DefaultEnv("GRPC_GATEWAY_PORT", 11000)
+	defaultHost = DefaultEnv("GRPC_HOST", "localhost")
+
+	gRPCPort     = flag.Int("grpc-port", defaultPort, "The gRPC server port")
+	gatewayPort  = flag.Int("gateway-port", defaultRest, "The gRPC-Gateway server port")
 	nocheck      = flag.Bool("insecure", false, "don't complain about self-signed certs")
 	enableAuth   = flag.Bool("enable-auth", false, "enable authentication interceptor")
 	printMetrics = flag.Bool("print-metrics", false, "print metrics on shutdown")
-	hostname     = flag.String("bind to host address", "localhost", "control access based on host address")
+	hostname     = flag.String("host", defaultHost, "bind to host address")
 )
+
+func DefaultEnv[T any](name string, def T) T {
+	if val, ok := os.LookupEnv(name); ok {
+		var ret T
+		switch any(def).(type) {
+		case string:
+			ret = any(val).(T)
+		case int:
+			// i, err := strconv.ParseInt(val, 10, strconv.IntSize)
+			// if err != nil{
+			// 	log.Fatalf("failed to parse env var %s as int: %v", name, err)
+			// }
+			// return int(i)
+			// return int(T(i))
+			var v int
+			_, err := fmt.Sscanf(val, "%d", &v)
+			if err == nil {
+				ret = any(v).(T)
+			} else {
+				ret = def
+			}
+		case bool:
+			var v bool
+			_, err := fmt.Sscanf(val, "%t", &v)
+			if err == nil {
+				ret = any(v).(T)
+			} else {
+				ret = def
+			}
+		default:
+			log.Fatalf("unsupported env var type for %s - %T", name, def)
+		}
+		return ret
+	}
+	return def
+}
 
 //go:embed third_party/OpenAPI/*
 var content embed.FS
@@ -44,7 +84,9 @@ func init() {
 
 // serveOpenAPI serves an OpenAPI UI on /openapi-ui/
 func serveOpenAPI(mux *http.ServeMux) error {
-	mime.AddExtensionType(".svg", "image/svg+xml")
+	if err := mime.AddExtensionType(".svg", "image/svg+xml"); err != nil {
+		return fmt.Errorf("mime add ext fail: %w", err)
+	}
 
 	prefix := "/openapi-ui/"
 	dirname := "third_party/OpenAPI"
@@ -126,10 +168,11 @@ func main() {
 	var dialOpts []grpc.DialOption
 	dialOpts = append(dialOpts, grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(insecure.CertPool, "")))
 
-	conn, err := grpc.Dial(dialAddr, dialOpts...)
+	conn, err := grpc.NewClient(dialAddr, dialOpts...)
 	if err != nil {
 		log.Fatalf("Failed to dial server: %v", err)
 	}
+	//nolint:errcheck // close doesn't matter here
 	defer conn.Close()
 
 	mux := http.NewServeMux()
@@ -147,7 +190,7 @@ func main() {
 		log.Printf("Warning: Failed to serve OpenAPI UI: %v", err)
 	}
 
-	gatewayAddr := fmt.Sprintf("localhost:%d", *gatewayPort)
+	gatewayAddr := fmt.Sprintf("%s:%d", *hostname, *gatewayPort)
 	log.Printf("Serving gRPC-Gateway on https://%s", gatewayAddr)
 	log.Printf("Serving OpenAPI Documentation on https://%s/openapi-ui/", gatewayAddr)
 

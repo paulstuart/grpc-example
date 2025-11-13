@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"io"
@@ -10,15 +11,16 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/paulstuart/grpc-example/insecure"
-	pb "github.com/paulstuart/grpc-example/proto"
+	custominsecure "github.com/paulstuart/grpc-example/insecure"
+	pb "github.com/paulstuart/grpc-example/proto/pkg"
 )
 
 var (
-	serverAddr = flag.String("server", "localhost:10000", "gRPC server address")
+	serverAddr   = flag.String("server", "localhost:10000", "gRPC server address")
 	insecureConn = flag.Bool("insecure", false, "use insecure connection")
 )
 
@@ -31,15 +33,22 @@ func main() {
 	// Setup connection
 	var opts []grpc.DialOption
 	if *insecureConn {
-		opts = append(opts, grpc.WithInsecure())
+		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	} else {
-		opts = append(opts, grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(insecure.CertPool, "")))
+		// Use self-signed cert with InsecureSkipVerify for development
+		// This allows connecting to any hostname with the self-signed cert
+		tlsConfig := &tls.Config{
+			RootCAs:            custominsecure.CertPool,
+			InsecureSkipVerify: true, // Skip hostname verification for self-signed certs
+		}
+		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
 	}
 
-	conn, err := grpc.Dial(*serverAddr, opts...)
+	conn, err := grpc.NewClient(*serverAddr, opts...)
 	if err != nil {
 		log.Fatalf("Failed to connect: %v", err)
 	}
+	//nolint:errcheck // error doesn't matter at that point
 	defer conn.Close()
 
 	client := pb.NewUserServiceClient(conn)
@@ -109,11 +118,11 @@ func demonstrateAddUser(ctx context.Context, client pb.UserServiceClient) {
 			DisplayName: "Administrator",
 			Bio:         "System administrator",
 			Preferences: map[string]int32{
-				"theme":       1,
+				"theme":         1,
 				"notifications": 0,
 			},
 		},
-		Tags:     []string{"admin", "staff"},
+		Tags: []string{"admin", "staff"},
 		Metadata: map[string]string{
 			"department": "IT",
 			"location":   "HQ",
@@ -246,27 +255,27 @@ func demonstrateBatchAddUsers(ctx context.Context, client pb.UserServiceClient) 
 	}
 
 	// Send multiple users
-	users := []* pb.User{
+	users := []*pb.User{
 		{
-			Id:       2,
-			Role:     pb.Role_MEMBER,
-			Username: "user1",
+			Id:          2,
+			Role:        pb.Role_MEMBER,
+			Username:    "user1",
 			ContactInfo: &pb.User_Email{Email: "user1@example.com"},
-			Status:   pb.UserStatus_ACTIVE,
+			Status:      pb.UserStatus_ACTIVE,
 		},
 		{
-			Id:       3,
-			Role:     pb.Role_MEMBER,
-			Username: "user2",
+			Id:          3,
+			Role:        pb.Role_MEMBER,
+			Username:    "user2",
 			ContactInfo: &pb.User_Phone{Phone: "+1234567890"},
-			Status:   pb.UserStatus_ACTIVE,
+			Status:      pb.UserStatus_ACTIVE,
 		},
 		{
-			Id:       4,
-			Role:     pb.Role_MODERATOR,
-			Username: "mod1",
+			Id:          4,
+			Role:        pb.Role_MODERATOR,
+			Username:    "mod1",
 			ContactInfo: &pb.User_Email{Email: "mod1@example.com"},
-			Status:   pb.UserStatus_ACTIVE,
+			Status:      pb.UserStatus_ACTIVE,
 		},
 	}
 
@@ -358,7 +367,7 @@ func demonstrateUserActivityStream(ctx context.Context, client pb.UserServiceCli
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	stream.CloseSend()
+	_ = stream.CloseSend()
 	<-done
 	log.Println("✓ Activity stream completed")
 }
@@ -408,18 +417,18 @@ func demonstrateSyncUsers(ctx context.Context, client pb.UserServiceClient) {
 	// Send users to sync
 	users := []*pb.User{
 		{
-			Id:       5,
-			Role:     pb.Role_MEMBER,
-			Username: "synced_user_1",
+			Id:          5,
+			Role:        pb.Role_MEMBER,
+			Username:    "synced_user_1",
 			ContactInfo: &pb.User_Email{Email: "synced1@example.com"},
-			Status:   pb.UserStatus_ACTIVE,
+			Status:      pb.UserStatus_ACTIVE,
 		},
 		{
-			Id:       2, // Update existing user
-			Role:     pb.Role_ADMIN,
-			Username: "user1_updated",
+			Id:          2, // Update existing user
+			Role:        pb.Role_ADMIN,
+			Username:    "user1_updated",
 			ContactInfo: &pb.User_Email{Email: "user1@example.com"},
-			Status:   pb.UserStatus_ACTIVE,
+			Status:      pb.UserStatus_ACTIVE,
 		},
 	}
 
@@ -432,7 +441,7 @@ func demonstrateSyncUsers(ctx context.Context, client pb.UserServiceClient) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	stream.CloseSend()
+	_ = stream.CloseSend()
 	<-done
 	log.Println("✓ User sync completed")
 }

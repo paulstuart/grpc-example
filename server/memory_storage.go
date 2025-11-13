@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	pb "github.com/paulstuart/grpc-example/proto"
+	pb "github.com/paulstuart/grpc-example/proto/pkg"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"

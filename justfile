@@ -12,31 +12,37 @@ install:
     go install github.com/bufbuild/buf/cmd/buf@latest
     @echo "All tools installed successfully!"
 
-# Generate protobuf and gRPC code
+# Generate protobuf and gRPC code using Buf
+buf:
+    @echo "Generating protobuf code with buf..."
+    cd proto/protos && buf generate
+    @echo "Code generation complete!"
+
+# Generate protobuf and gRPC code (legacy protoc method)
 generate:
     @echo "Generating protobuf code..."
-    protoc -I proto \
+    protoc -I proto/protos \
       -I ~/.cache/buf/v1/module/data/buf.build/googleapis/googleapis/d1263fe26f8e430a967dc22a4d0cad18 \
-      --go_out=proto --go_opt=paths=source_relative \
-      --go-grpc_out=proto --go-grpc_opt=paths=source_relative \
-      --grpc-gateway_out=proto --grpc-gateway_opt=paths=source_relative,generate_unbound_methods=true \
-      proto/example.proto
+      --go_out=proto/pkg --go_opt=paths=source_relative \
+      --go-grpc_out=proto/pkg --go-grpc_opt=paths=source_relative \
+      --grpc-gateway_out=proto/pkg --grpc-gateway_opt=paths=source_relative,generate_unbound_methods=true \
+      proto/protos/example.proto
     @echo "Code generation complete!"
 
 # Lint protobuf files using Buf
-lint:
+protolint:
     @echo "Linting protobuf files..."
-    buf lint
+    cd proto/protos && buf lint
 
 # Format protobuf files using Buf
 format:
     @echo "Formatting protobuf files..."
-    buf format -w
+    cd proto/protos && buf format -w
 
 # Check for breaking changes in protobuf files
 breaking:
     @echo "Checking for breaking changes..."
-    buf breaking --against '.git#branch=master'
+    cd proto/protos && buf breaking --against '.git#branch=master'
 
 # Build the server binary
 build:
@@ -71,8 +77,8 @@ clean:
     @echo "Cleaning generated files..."
     rm -f grpc-example
     rm -f coverage.out coverage.html
-    rm -f proto/*.pb.go
-    rm -f proto/*.pb.gw.go
+    rm -f proto/pkg/*.pb.go
+    rm -f proto/pkg/*.pb.gw.go
     rm -rf third_party/OpenAPI/*
     @echo "Clean complete!"
 
@@ -89,9 +95,13 @@ tidy:
     go mod tidy
 
 # Run the client example
-run-client: build
+build-client:
+    @echo "Building client example..."
+    go build -o client cmd/client/main.go
+
+run-client: build-client
     @echo "Running client example..."
-    go run cmd/client/main.go
+    @./client
 
 # Full regeneration and build
 rebuild: clean generate build
@@ -102,6 +112,9 @@ check: lint test
     @echo "All checks passed!"
 
 # Newly added
+
+lint:
+    golangci-lint run ./...
 
 CERTS_DIR := "certs"
 SERVER_CERT := CERTS_DIR + "/server.crt"

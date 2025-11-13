@@ -3,7 +3,7 @@ package server
 import (
 	"context"
 
-	pb "github.com/paulstuart/grpc-example/proto"
+	pb "github.com/paulstuart/grpc-example/proto/pkg"
 )
 
 // Storage defines the interface for user data persistence

@@ -80,9 +80,7 @@ func authorize(ctx context.Context) error {
 
 	token := values[0]
 	// Support both "Bearer <token>" and raw token formats
-	if strings.HasPrefix(token, "Bearer ") {
-		token = strings.TrimPrefix(token, "Bearer ")
-	}
+	token = strings.TrimPrefix(token, "Bearer ")
 
 	// Simple validation - in production, validate JWT or check against database
 	if token != validAPIKey {
