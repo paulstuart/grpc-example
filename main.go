@@ -7,53 +7,42 @@ import (
 	"flag"
 	"fmt"
 	"io/fs"
-	"io/ioutil"
+	"log"
 	"mime"
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
-	"github.com/gogo/gateway"
-	grpc_validator "github.com/grpc-ecosystem/go-grpc-middleware/validator"
-	"github.com/grpc-ecosystem/grpc-gateway/runtime"
+	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/grpclog"
 
-	"github.com/gogo/grpc-example/insecure"
-	pbExample "github.com/gogo/grpc-example/proto"
-	"github.com/gogo/grpc-example/server"
+	"github.com/paulstuart/grpc-example/insecure"
+	"github.com/paulstuart/grpc-example/interceptors"
+	pb "github.com/paulstuart/grpc-example/proto"
+	"github.com/paulstuart/grpc-example/server"
 )
 
 var (
-	gRPCPort    = flag.Int("grpc-port", 10000, "The gRPC server port")
-	gatewayPort = flag.Int("gateway-port", 11000, "The gRPC-Gateway server port")
-	nocheck     = flag.Bool("insecure", false, "don't complain about self-signed certs")
+	gRPCPort     = flag.Int("grpc-port", 10000, "The gRPC server port")
+	gatewayPort  = flag.Int("gateway-port", 11000, "The gRPC-Gateway server port")
+	nocheck      = flag.Bool("insecure", false, "don't complain about self-signed certs")
+	enableAuth   = flag.Bool("enable-auth", false, "enable authentication interceptor")
+	printMetrics = flag.Bool("print-metrics", false, "print metrics on shutdown")
+	hostname     = flag.String("bind to host address", "localhost", "control access based on host address")
 )
-
-var log grpclog.LoggerV2
-
-func init() {
-	log = grpclog.NewLoggerV2(os.Stdout, ioutil.Discard, ioutil.Discard)
-	grpclog.SetLoggerV2(log)
-}
 
 //go:embed third_party/OpenAPI/*
 var content embed.FS
 
-var public embed.FS
-
-func fsHandler() http.Handler {
-	sub, err := fs.Sub(public, "frontend/public")
-	if err != nil {
-		panic(err)
-	}
-
-	return http.FileServer(http.FS(sub))
+func init() {
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 }
 
 // serveOpenAPI serves an OpenAPI UI on /openapi-ui/
-// Adapted from https://github.com/philips/grpc-gateway-example/blob/a269bcb5931ca92be0ceae6130ac27ae89582ecc/cmd/serve.go#L63
 func serveOpenAPI(mux *http.ServeMux) error {
 	mime.AddExtensionType(".svg", "image/svg+xml")
 
@@ -71,65 +60,98 @@ func serveOpenAPI(mux *http.ServeMux) error {
 
 func main() {
 	flag.Parse()
-	addr := fmt.Sprintf("localhost:%d", *gRPCPort)
+
+	log.Println("Starting gRPC Example Server...")
+	log.Printf("gRPC Port: %d", *gRPCPort)
+	log.Printf("Gateway Port: %d", *gatewayPort)
+	log.Printf("Auth Enabled: %v", *enableAuth)
+	log.Printf("Host address: %s", *hostname)
+
+	// Setup graceful shutdown
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	// Create gRPC server with interceptors
+	addr := fmt.Sprintf("%s:%d", *hostname, *gRPCPort)
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {
-		log.Fatalln("Failed to listen:", err)
+		log.Fatalf("Failed to listen: %v", err)
 	}
-	s := grpc.NewServer(
-		grpc.Creds(credentials.NewServerTLSFromCert(&insecure.Cert)),
-		grpc.UnaryInterceptor(grpc_validator.UnaryServerInterceptor()),
-		grpc.StreamInterceptor(grpc_validator.StreamServerInterceptor()),
-	)
-	pbExample.RegisterUserServiceServer(s, server.New())
 
-	// Serve gRPC Server
-	log.Info("Serving gRPC on https://", addr)
+	// Build interceptor chain
+	var unaryInterceptors []grpc.UnaryServerInterceptor
+	var streamInterceptors []grpc.StreamServerInterceptor
+
+	// Always add logging
+	unaryInterceptors = append(unaryInterceptors, interceptors.LoggingUnaryInterceptor())
+	streamInterceptors = append(streamInterceptors, interceptors.LoggingStreamInterceptor())
+
+	// Add metrics
+	unaryInterceptors = append(unaryInterceptors, interceptors.MetricsUnaryInterceptor())
+	streamInterceptors = append(streamInterceptors, interceptors.MetricsStreamInterceptor())
+
+	// Optionally add auth
+	if *enableAuth {
+		unaryInterceptors = append(unaryInterceptors, interceptors.AuthUnaryInterceptor())
+		streamInterceptors = append(streamInterceptors, interceptors.AuthStreamInterceptor())
+		log.Println("Authentication interceptor enabled - use 'authorization: demo-api-key-12345' in metadata")
+	}
+
+	// Chain interceptors
+	opts := []grpc.ServerOption{
+		grpc.Creds(credentials.NewServerTLSFromCert(&insecure.Cert)),
+		grpc.ChainUnaryInterceptor(unaryInterceptors...),
+		grpc.ChainStreamInterceptor(streamInterceptors...),
+	}
+
+	grpcServer := grpc.NewServer(opts...)
+
+	// Register the UserService with default in-memory storage
+	pb.RegisterUserServiceServer(grpcServer, server.NewWithDefaultStorage())
+
+	// Serve gRPC Server in background
+	log.Printf("Serving gRPC on https://%s", addr)
 	go func() {
-		log.Fatal(s.Serve(lis))
+		if err := grpcServer.Serve(lis); err != nil {
+			log.Fatalf("Failed to serve gRPC: %v", err)
+		}
 	}()
 
-	// See https://github.com/grpc/grpc/blob/master/doc/naming.md
-	// for gRPC naming standard information.
-	dialAddr := fmt.Sprintf("passthrough://localhost/%s", addr)
-	conn, err := grpc.DialContext(
-		context.Background(),
-		dialAddr,
-		grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(insecure.CertPool, "")),
-		grpc.WithBlock(),
-	)
+	// Setup gRPC-Gateway
+	dialAddr := fmt.Sprintf("%s:%d", *hostname, *gRPCPort)
+
+	var dialOpts []grpc.DialOption
+	dialOpts = append(dialOpts, grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(insecure.CertPool, "")))
+
+	conn, err := grpc.Dial(dialAddr, dialOpts...)
 	if err != nil {
-		log.Fatalln("Failed to dial server:", err)
+		log.Fatalf("Failed to dial server: %v", err)
 	}
+	defer conn.Close()
 
 	mux := http.NewServeMux()
+	gwmux := runtime.NewServeMux()
 
-	jsonpb := &gateway.JSONPb{
-		EmitDefaults: true,
-		Indent:       "  ",
-		OrigName:     true,
-	}
-	gwmux := runtime.NewServeMux(
-		runtime.WithMarshalerOption(runtime.MIMEWildcard, jsonpb),
-		// This is necessary to get error details properly
-		// marshalled in unary requests.
-		runtime.WithProtoErrorHandler(runtime.DefaultHTTPProtoErrorHandler),
-	)
-	err = pbExample.RegisterUserServiceHandler(context.Background(), gwmux, conn)
+	err = pb.RegisterUserServiceHandler(ctx, gwmux, conn)
 	if err != nil {
-		log.Fatalln("Failed to register gateway:", err)
+		log.Fatalf("Failed to register gateway: %v", err)
 	}
 
 	mux.Handle("/", gwmux)
-	err = serveOpenAPI(mux)
-	if err != nil {
-		log.Fatalln("Failed to serve OpenAPI UI")
+
+	// Try to serve OpenAPI UI if files exist
+	if err := serveOpenAPI(mux); err != nil {
+		log.Printf("Warning: Failed to serve OpenAPI UI: %v", err)
 	}
 
 	gatewayAddr := fmt.Sprintf("localhost:%d", *gatewayPort)
-	log.Info("Serving gRPC-Gateway on https://", gatewayAddr)
-	log.Info("Serving OpenAPI Documentation on https://", gatewayAddr, "/openapi-ui/")
-	gwServer := http.Server{
+	log.Printf("Serving gRPC-Gateway on https://%s", gatewayAddr)
+	log.Printf("Serving OpenAPI Documentation on https://%s/openapi-ui/", gatewayAddr)
+
+	gwServer := &http.Server{
 		Addr: gatewayAddr,
 		TLSConfig: &tls.Config{
 			Certificates:       []tls.Certificate{insecure.Cert},
@@ -137,5 +159,38 @@ func main() {
 		},
 		Handler: mux,
 	}
-	log.Fatalln(gwServer.ListenAndServeTLS("", ""))
+
+	// Serve HTTP Gateway in background
+	go func() {
+		if err := gwServer.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Failed to serve HTTP gateway: %v", err)
+		}
+	}()
+
+	log.Println("Server started successfully!")
+	log.Println("Press Ctrl+C to shutdown...")
+
+	// Wait for shutdown signal
+	<-sigChan
+	log.Println("\nShutdown signal received, gracefully shutting down...")
+
+	// Print metrics if requested
+	if *printMetrics {
+		log.Println("\n=== Final Metrics ===")
+		interceptors.GetMetrics().PrintStats()
+	}
+
+	// Graceful shutdown
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
+
+	// Shutdown HTTP gateway
+	if err := gwServer.Shutdown(shutdownCtx); err != nil {
+		log.Printf("HTTP gateway shutdown error: %v", err)
+	}
+
+	// Gracefully stop gRPC server
+	grpcServer.GracefulStop()
+
+	log.Println("Server shutdown complete")
 }
