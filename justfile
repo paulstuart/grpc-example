@@ -60,6 +60,17 @@ run-insecure: build
     @echo "Starting gRPC server (insecure mode)..."
     ./grpc-example --insecure
 
+# Run the server with custom TLS certificates
+# Example: just run-with-tls cert=certs/server.crt key=certs/server.key
+run-with-tls cert="certs/server.crt" key="certs/server.key": build
+    @echo "Starting gRPC server with TLS..."
+    ./grpc-example -cert={{cert}} -key={{key}}
+
+# Run the server with authentication enabled
+run-server-with-auth: build
+    @echo "Starting gRPC server with authentication..."
+    ./grpc-example -enable-auth
+
 # Run tests
 test:
     @echo "Running tests..."
@@ -149,8 +160,8 @@ validate-token token:
     @./grpc-example -validate="{{token}}"
 
 # Generate a token and run the client with it
-# Example: JWT_SECRET=my-secret just run-with-auth user-id=123 username=john email=john@example.com
-run-with-auth user-id username email roles="user": build-client build-tokengen
+# Example: JWT_SECRET=my-secret just run-client-with-auth user-id=123 username=john email=john@example.com
+run-client-with-auth user-id username email roles="user": build-client build-tokengen
     #!/usr/bin/env bash
     set -euo pipefail
     TOKEN=$(./tokengen -user-id={{user-id}} -username={{username}} -email={{email}} -roles={{roles}} 2>/dev/null)
@@ -161,12 +172,39 @@ CERTS_DIR := "certs"
 SERVER_CERT := CERTS_DIR + "/server.crt"
 SERVER_KEY := CERTS_DIR + "/server.key"
 
+# Generate self-signed TLS certificates with proper SANs (Subject Alternative Names)
+# This is required for modern TLS implementations that reject certificates with only CN
+gen-certs:
+    @echo "Generating TLS certificates with SANs..."
+    @mkdir -p {{CERTS_DIR}}
+    @openssl genrsa -out {{SERVER_KEY}} 2048 2>/dev/null
+    @openssl req -x509 -new -nodes -key {{SERVER_KEY}} -sha256 -days 365 \
+        -out {{SERVER_CERT}} \
+        -subj "/C=US/ST=State/L=City/O=Organization/CN=localhost" \
+        -addext "subjectAltName=DNS:localhost,DNS:*.localhost,DNS:pauleyphonic,IP:127.0.0.1,IP:0.0.0.0,IP:192.168.1.6" 2>/dev/null
+    @echo "✓ Generated certificates in {{CERTS_DIR}}/"
+    @echo "  Certificate: {{SERVER_CERT}}"
+    @echo "  Private Key: {{SERVER_KEY}}"
+    @echo "  SANs: localhost, *.localhost, pauleyphonic, 127.0.0.1, 0.0.0.0, 192.168.1.6"
+
+# Generate Let's Encrypt certificates (for production use)
 certs:
     lego --email="pauleyphonic@gmail.com" --domains="internal.paulstuart.org" --http run
 
+# Legacy targets (use gen-certs instead)
 serverkey:
     @mkdir -p {{CERTS_DIR}}
     openssl genrsa -out {{SERVER_KEY}} 2048
 
 signtls: serverkey
-    openssl req -x509 -new -nodes -key {{SERVER_KEY}} -sha256 -days 365 -out {{SERVER_CERT}}
+    @echo "Generating self-signed certificate with SANs..."
+    openssl req -x509 -new -nodes -key {{SERVER_KEY}} -sha256 -days 365 \
+        -out {{SERVER_CERT}} \
+        -subj "/C=US/ST=State/L=City/O=Organization/CN=localhost" \
+        -addext "subjectAltName=DNS:localhost,DNS:*.localhost,DNS:pauleyphonic,IP:127.0.0.1,IP:0.0.0.0,IP:192.168.1.6"
+
+sample-server:
+    ./grpc-example -host pauleyphonic -enable-auth |& tee run5.log
+
+sample-client:
+   ./client -server pauleyphonic:10000 -token $(cat testtoken) |& tee client01.log

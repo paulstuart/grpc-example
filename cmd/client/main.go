@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"flag"
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"time"
 
 	"google.golang.org/grpc"
@@ -16,7 +18,6 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	custominsecure "github.com/paulstuart/grpc-example/insecure"
 	pb "github.com/paulstuart/grpc-example/proto/pkg"
 )
 
@@ -24,7 +25,37 @@ var (
 	serverAddr   = flag.String("server", "localhost:10000", "gRPC server address")
 	insecureConn = flag.Bool("insecure", false, "use insecure connection")
 	jwtToken     = flag.String("token", "", "JWT token for authentication (optional)")
+	certFile     = flag.String("cert", "certs/server.crt", "TLS certificate file")
+	skipVerify   = flag.Bool("skip-verify", false, "skip TLS certificate verification")
 )
+
+// loadClientTLSConfig loads the client TLS configuration
+func loadClientTLSConfig(certFile string, skipVerify bool) (*tls.Config, error) {
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: skipVerify,
+		MinVersion:         tls.VersionTLS12,
+	}
+
+	// Load certificate if provided
+	if certFile != "" {
+		certPEM, err := os.ReadFile(certFile)
+		if err != nil {
+			// If cert file doesn't exist, just warn and use system certs
+			log.Printf("Warning: Failed to read cert file %s (%v), using system certificates", certFile, err)
+			return tlsConfig, nil
+		}
+
+		certPool := x509.NewCertPool()
+		if !certPool.AppendCertsFromPEM(certPEM) {
+			log.Printf("Warning: Failed to parse cert from %s, using system certificates", certFile)
+			return tlsConfig, nil
+		}
+
+		tlsConfig.RootCAs = certPool
+	}
+
+	return tlsConfig, nil
+}
 
 func main() {
 	flag.Parse()
@@ -37,11 +68,10 @@ func main() {
 	if *insecureConn {
 		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	} else {
-		// Use self-signed cert with InsecureSkipVerify for development
-		// This allows connecting to any hostname with the self-signed cert
-		tlsConfig := &tls.Config{
-			RootCAs:            custominsecure.CertPool,
-			InsecureSkipVerify: true, // Skip hostname verification for self-signed certs
+		// Load TLS certificate
+		tlsConfig, err := loadClientTLSConfig(*certFile, *skipVerify)
+		if err != nil {
+			log.Fatalf("Failed to load TLS config: %v", err)
 		}
 		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
 	}

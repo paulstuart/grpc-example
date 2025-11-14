@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"embed"
 	"flag"
 	"fmt"
@@ -41,6 +42,8 @@ var (
 	printMetrics  = flag.Bool("print-metrics", false, "print metrics on shutdown")
 	hostname      = flag.String("host", defaultHost, "bind to host address")
 	validateToken = flag.String("validate", "", "validate this JWT token and exit")
+	certFile      = flag.String("cert", "certs/server.crt", "TLS certificate file")
+	keyFile       = flag.String("key", "certs/server.key", "TLS key file")
 )
 
 // getJWTSecret returns the JWT secret key from environment variables
@@ -53,6 +56,34 @@ func getJWTSecret() string {
 		return secret
 	}
 	return "our little secret"
+}
+
+// loadTLSCredentials loads TLS certificate and key from files
+// Returns the certificate, a TLS config, and a cert pool for client use
+func loadTLSCredentials(certFile, keyFile string) (*tls.Certificate, *tls.Config, *x509.CertPool, error) {
+	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to load TLS key pair: %w", err)
+	}
+
+	// Parse the certificate to create a cert pool for clients
+	certPEM, err := os.ReadFile(certFile)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to read certificate file: %w", err)
+	}
+
+	certPool := x509.NewCertPool()
+	if !certPool.AppendCertsFromPEM(certPEM) {
+		return nil, nil, nil, fmt.Errorf("failed to parse certificate")
+	}
+
+	// Create TLS config
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		MinVersion:   tls.VersionTLS12,
+	}
+
+	return &cert, tlsConfig, certPool, nil
 }
 
 func DefaultEnv[T any](name string, def T) T {
@@ -137,6 +168,21 @@ func main() {
 	log.Printf("Auth Enabled: %v", *enableAuth)
 	log.Printf("Host address: %s", *hostname)
 
+	// Load TLS credentials
+	tlsCert, tlsConfig, certPool, err := loadTLSCredentials(*certFile, *keyFile)
+	if err != nil {
+		// Fall back to insecure embedded credentials
+		log.Printf("Warning: Failed to load TLS credentials (%v), falling back to embedded self-signed cert", err)
+		tlsCert = &insecure.Cert
+		tlsConfig = &tls.Config{
+			Certificates: []tls.Certificate{insecure.Cert},
+			MinVersion:   tls.VersionTLS12,
+		}
+		certPool = insecure.CertPool
+	} else {
+		log.Printf("TLS enabled: cert=%s, key=%s", *certFile, *keyFile)
+	}
+
 	// Setup graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -176,7 +222,7 @@ func main() {
 
 	// Chain interceptors
 	opts := []grpc.ServerOption{
-		grpc.Creds(credentials.NewServerTLSFromCert(&insecure.Cert)),
+		grpc.Creds(credentials.NewServerTLSFromCert(tlsCert)),
 		grpc.ChainUnaryInterceptor(unaryInterceptors...),
 		grpc.ChainStreamInterceptor(streamInterceptors...),
 	}
@@ -198,7 +244,8 @@ func main() {
 	dialAddr := fmt.Sprintf("%s:%d", *hostname, *gRPCPort)
 
 	var dialOpts []grpc.DialOption
-	dialOpts = append(dialOpts, grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(insecure.CertPool, "")))
+	// Use the cert pool from loaded credentials (or embedded if fallback occurred)
+	dialOpts = append(dialOpts, grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(certPool, "")))
 
 	conn, err := grpc.NewClient(dialAddr, dialOpts...)
 	if err != nil {
@@ -226,13 +273,20 @@ func main() {
 	log.Printf("Serving gRPC-Gateway on https://%s", gatewayAddr)
 	log.Printf("Serving OpenAPI Documentation on https://%s/openapi-ui/", gatewayAddr)
 
+	// Update TLS config for gateway with InsecureSkipVerify if needed
+	gatewayTLSConfig := tlsConfig
+	if *nocheck {
+		gatewayTLSConfig = &tls.Config{
+			Certificates:       tlsConfig.Certificates,
+			InsecureSkipVerify: true,
+			MinVersion:         tls.VersionTLS12,
+		}
+	}
+
 	gwServer := &http.Server{
-		Addr: gatewayAddr,
-		TLSConfig: &tls.Config{
-			Certificates:       []tls.Certificate{insecure.Cert},
-			InsecureSkipVerify: *nocheck,
-		},
-		Handler: mux,
+		Addr:      gatewayAddr,
+		TLSConfig: gatewayTLSConfig,
+		Handler:   mux,
 	}
 
 	// Serve HTTP Gateway in background

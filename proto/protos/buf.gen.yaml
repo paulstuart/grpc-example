@@ -16,3 +16,9 @@ plugins:
     opt:
       - paths=source_relative
       - generate_unbound_methods=true
+  # Generate OpenAPI v2 (Swagger) spec
+  - name: openapiv2
+    out: ../../third_party/OpenAPI
+    opt:
+      - allow_merge=true
+      - merge_file_name=example

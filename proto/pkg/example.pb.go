@@ -11,6 +11,7 @@
 package pkg
 
 import (
+	_ "github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/options"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -1182,7 +1183,7 @@ var File_example_proto protoreflect.FileDescriptor
 
 const file_example_proto_rawDesc = "" +
 	"\n" +
-	"\rexample.proto\x12\x05proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1egoogle/protobuf/duration.proto\x1a google/protobuf/field_mask.proto\x1a\x1cgoogle/api/annotations.proto\"\x96\x04\n" +
+	"\rexample.proto\x12\x05proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1egoogle/protobuf/duration.proto\x1a google/protobuf/field_mask.proto\x1a\x1cgoogle/api/annotations.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\"\x96\x04\n" +
 	"\x04User\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\rR\x02id\x12\x1f\n" +
 	"\x04role\x18\x02 \x01(\x0e2\v.proto.RoleR\x04role\x12;\n" +
@@ -1307,7 +1308,13 @@ const file_example_proto_rawDesc = "" +
 	"DeleteUser\x12\x18.proto.DeleteUserRequest\x1a\x16.google.protobuf.Empty\"\x1a\x82\xd3\xe4\x93\x02\x14*\x12/api/v1/users/{id}\x12\\\n" +
 	"\rBatchAddUsers\x12\v.proto.User\x1a\x1c.proto.BatchAddUsersResponse\"\x1e\x82\xd3\xe4\x93\x02\x18:\x01*\"\x13/api/v1/users/batch(\x01\x12L\n" +
 	"\x12UserActivityStream\x12\x13.proto.UserActivity\x1a\x1b.proto.UserActivityResponse\"\x00(\x010\x01\x127\n" +
-	"\tSyncUsers\x12\v.proto.User\x1a\x17.proto.SyncUserResponse\"\x00(\x010\x01B.Z,github.com/paulstuart/grpc-example/proto/pkgb\x06proto3"
+	"\tSyncUsers\x12\v.proto.User\x1a\x17.proto.SyncUserResponse\"\x00(\x010\x01B\xfb\x01\x92A\xc9\x01\x12=\n" +
+	"\x10gRPC Example API\x12$gRPC Example with JWT Authentication2\x031.0*\x01\x022\x10application/json:\x10application/jsonZS\n" +
+	"Q\n" +
+	"\x06Bearer\x12G\b\x02\x122Enter your JWT token in the format: Bearer <token>\x1a\rAuthorization \x02b\f\n" +
+	"\n" +
+	"\n" +
+	"\x06Bearer\x12\x00Z,github.com/paulstuart/grpc-example/proto/pkgb\x06proto3"
 
 var (
 	file_example_proto_rawDescOnce sync.Once
