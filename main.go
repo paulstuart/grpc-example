@@ -24,6 +24,7 @@ import (
 
 	"github.com/paulstuart/grpc-example/insecure"
 	"github.com/paulstuart/grpc-example/interceptors"
+	"github.com/paulstuart/grpc-example/otel"
 	pb "github.com/paulstuart/grpc-example/proto/pkg"
 	"github.com/paulstuart/grpc-example/server"
 )
@@ -46,6 +47,15 @@ var (
 	certFile      = flag.String("cert", "certs/server.crt", "TLS certificate file")
 	keyFile       = flag.String("key", "certs/server.key", "TLS key file")
 	pprofAddr     = flag.String("pprof", "", "enable pprof HTTP server on this address (e.g., localhost:6060)")
+
+	// OpenTelemetry flags
+	otelEnabled  = flag.Bool("otel-enabled", DefaultEnv("OTEL_ENABLED", true), "enable OpenTelemetry")
+	otelEndpoint = flag.String("otel-endpoint", DefaultEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317"), "OpenTelemetry collector endpoint")
+	serviceName  = flag.String("service-name", DefaultEnv("SERVICE_NAME", "grpc-example"), "service name for OpenTelemetry")
+	environment  = flag.String("environment", DefaultEnv("ENVIRONMENT", "development"), "deployment environment")
+
+	// Database flags
+	dbConnString = flag.String("db", DefaultEnv("DATABASE_URL", ""), "PostgreSQL connection string (empty = use in-memory storage)")
 )
 
 // getJWTSecret returns the JWT secret key from environment variables
@@ -224,6 +234,12 @@ func main() {
 	log.Printf("Gateway Port: %d", *gatewayPort)
 	log.Printf("Auth Enabled: %v", *enableAuth)
 	log.Printf("Host address: %s", *hostname)
+	log.Printf("OpenTelemetry Enabled: %v", *otelEnabled)
+	if *dbConnString != "" {
+		log.Printf("Using PostgreSQL database")
+	} else {
+		log.Printf("Using in-memory storage")
+	}
 
 	// Load TLS credentials
 	tlsCert, tlsConfig, certPool, err := loadTLSCredentials(*certFile, *keyFile)
@@ -247,6 +263,34 @@ func main() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
+	// Initialize OpenTelemetry
+	var otelShutdown otel.Shutdown
+	if *otelEnabled {
+		var err error
+		otelShutdown, err = otel.Setup(ctx, otel.Config{
+			ServiceName:    *serviceName,
+			ServiceVersion: "1.0.0", // TODO: get from build info
+			Environment:    *environment,
+			OTLPEndpoint:   *otelEndpoint,
+			Enabled:        true,
+		})
+		if err != nil {
+			log.Fatalf("Failed to initialize OpenTelemetry: %v", err)
+		}
+		defer func() {
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer shutdownCancel()
+			if err := otelShutdown(shutdownCtx); err != nil {
+				log.Printf("Error shutting down OpenTelemetry: %v", err)
+			}
+		}()
+
+		// Initialize OpenTelemetry metrics
+		if err := interceptors.InitializeOtelMetrics(); err != nil {
+			log.Fatalf("Failed to initialize OpenTelemetry metrics: %v", err)
+		}
+	}
+
 	// Create gRPC server with interceptors
 	addr := fmt.Sprintf("%s:%d", *hostname, *gRPCPort)
 	lis, err := net.Listen("tcp", addr)
@@ -258,13 +302,25 @@ func main() {
 	var unaryInterceptors []grpc.UnaryServerInterceptor
 	var streamInterceptors []grpc.StreamServerInterceptor
 
-	// Always add logging
-	unaryInterceptors = append(unaryInterceptors, interceptors.LoggingUnaryInterceptor())
-	streamInterceptors = append(streamInterceptors, interceptors.LoggingStreamInterceptor())
+	// Add OpenTelemetry or standard interceptors based on configuration
+	if *otelEnabled {
+		// Use OpenTelemetry-enhanced interceptors
+		unaryInterceptors = append(unaryInterceptors, interceptors.OtelLoggingUnaryInterceptor())
+		streamInterceptors = append(streamInterceptors, interceptors.OtelLoggingStreamInterceptor())
 
-	// Add metrics
-	unaryInterceptors = append(unaryInterceptors, interceptors.MetricsUnaryInterceptor())
-	streamInterceptors = append(streamInterceptors, interceptors.MetricsStreamInterceptor())
+		unaryInterceptors = append(unaryInterceptors, interceptors.OtelMetricsUnaryInterceptor())
+		streamInterceptors = append(streamInterceptors, interceptors.OtelMetricsStreamInterceptor())
+
+		// Note: otelgrpc interceptors are not needed as we have custom Otel interceptors
+		// that provide more detailed instrumentation
+	} else {
+		// Use standard logging and metrics
+		unaryInterceptors = append(unaryInterceptors, interceptors.LoggingUnaryInterceptor())
+		streamInterceptors = append(streamInterceptors, interceptors.LoggingStreamInterceptor())
+
+		unaryInterceptors = append(unaryInterceptors, interceptors.MetricsUnaryInterceptor())
+		streamInterceptors = append(streamInterceptors, interceptors.MetricsStreamInterceptor())
+	}
 
 	// Optionally add auth
 	if *enableAuth {
@@ -286,8 +342,23 @@ func main() {
 
 	grpcServer := grpc.NewServer(opts...)
 
-	// Register the UserService with default in-memory storage
-	pb.RegisterUserServiceServer(grpcServer, server.NewWithDefaultStorage())
+	// Initialize storage backend
+	var storage server.Storage
+	if *dbConnString != "" {
+		var err error
+		storage, err = server.NewPostgresStorage(ctx, *dbConnString)
+		if err != nil {
+			log.Fatalf("Failed to initialize PostgreSQL storage: %v", err)
+		}
+		log.Println("PostgreSQL storage initialized successfully")
+		defer storage.(*server.PostgresStorage).Close()
+	} else {
+		storage = server.NewMemoryStorage()
+		log.Println("In-memory storage initialized")
+	}
+
+	// Register the UserService with configured storage
+	pb.RegisterUserServiceServer(grpcServer, server.New(storage))
 
 	// Serve gRPC Server in background
 	log.Printf("Serving gRPC on https://%s", addr)
@@ -340,10 +411,17 @@ func main() {
 		}
 	}
 
+	// Wrap HTTP handler with OpenTelemetry instrumentation if enabled
+	var httpHandler http.Handler = mux
+	if *otelEnabled {
+		httpHandler = otel.WrapMux(mux, *serviceName+"-gateway")
+		log.Println("HTTP Gateway instrumented with OpenTelemetry")
+	}
+
 	gwServer := &http.Server{
 		Addr:      gatewayAddr,
 		TLSConfig: gatewayTLSConfig,
-		Handler:   mux,
+		Handler:   httpHandler,
 	}
 
 	// Serve HTTP Gateway in background

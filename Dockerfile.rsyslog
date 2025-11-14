@@ -1,0 +1,20 @@
+FROM alpine:latest
+
+# Install rsyslog
+RUN apk add --no-cache rsyslog rsyslog-doc
+
+# Create log directories
+RUN mkdir -p /var/log/remote
+
+# Copy custom configuration
+COPY rsyslog.conf /etc/rsyslog.conf
+
+# Expose syslog ports
+EXPOSE 514/udp 514/tcp
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD pgrep rsyslogd || exit 1
+
+# Run rsyslog in foreground
+CMD ["rsyslogd", "-n"]

@@ -210,3 +210,186 @@ sample-server:
 
 sample-client:
    ./client -server {{SERVER_NAME}}:10000 -token $(cat testtoken) |& tee client01.log
+
+# Docker / Docker Compose Commands
+
+# Build Docker image for the API server
+docker-build:
+    @echo "Building Docker image..."
+    docker build -t grpc-example:latest .
+    @echo "Docker image built successfully!"
+
+# Start the full stack (database, otel-collector, tempo, grafana, API)
+docker-up:
+    @echo "Starting Docker Compose stack..."
+    docker compose up -d
+    @echo "Stack is running!"
+    @echo "  - Grafana:      http://localhost:3000"
+    @echo "  - gRPC API:     https://localhost:10000"
+    @echo "  - HTTP Gateway: https://localhost:11000"
+    @echo "  - PostgreSQL:   localhost:5432"
+
+# Start the stack with build
+docker-up-build:
+    @echo "Building and starting Docker Compose stack..."
+    docker compose up -d --build
+    @echo "Stack is running!"
+
+# Scale API servers
+# Example: just docker-scale 3
+docker-scale count="2":
+    @echo "Scaling API servers to {{count}} instances..."
+    docker compose up -d --scale api={{count}}
+    @echo "API servers scaled to {{count}} instances!"
+
+# Stop the Docker Compose stack
+docker-down:
+    @echo "Stopping Docker Compose stack..."
+    docker compose down
+    @echo "Stack stopped!"
+
+# Stop and remove volumes (destructive - deletes database data)
+docker-down-volumes:
+    @echo "Stopping Docker Compose stack and removing volumes..."
+    docker compose down -v
+    @echo "Stack stopped and volumes removed!"
+
+# View logs from all services
+docker-logs:
+    docker compose logs -f
+
+# View logs from API servers only
+docker-logs-api:
+    docker compose logs -f api
+
+# View logs from a specific service
+# Example: just docker-logs-service postgres
+docker-logs-service service:
+    docker compose logs -f {{service}}
+
+# Restart a specific service
+# Example: just docker-restart api
+docker-restart service:
+    @echo "Restarting {{service}}..."
+    docker compose restart {{service}}
+
+# Execute a command in the running API container
+# Example: just docker-exec "ls -la"
+docker-exec cmd:
+    docker compose exec api {{cmd}}
+
+# Access PostgreSQL CLI
+docker-psql:
+    docker compose exec postgres psql -U grpc_user -d grpc_example
+
+# Access PostgreSQL container shell
+docker-postgres-shell:
+    docker compose exec postgres sh
+
+# Access Rsyslog container shell
+docker-rsyslog-shell:
+    docker compose exec rsyslog sh
+
+# View centralized logs from rsyslog
+docker-rsyslog-logs:
+    docker compose exec rsyslog tail -f /var/log/remote/all.log
+
+# View logs for a specific service from rsyslog
+# Example: just docker-rsyslog-service-logs postgres
+docker-rsyslog-service-logs service:
+    docker compose exec rsyslog find /var/lib/remote -name "{{service}}.log" -exec tail -f {} \;
+
+# List all log files in rsyslog
+docker-rsyslog-list:
+    docker compose exec rsyslog find /var/log/remote -type f -name "*.log" | sort
+
+# Check status of all services
+docker-ps:
+    docker compose ps
+
+# Run with OpenTelemetry enabled (local development)
+run-with-otel: build
+    @echo "Starting server with OpenTelemetry..."
+    OTEL_ENABLED=true OTEL_EXPORTER_OTLP_ENDPOINT=localhost:4317 ./grpc-example
+
+# Run with PostgreSQL database (requires PostgreSQL running)
+run-with-postgres: build
+    @echo "Starting server with PostgreSQL..."
+    DATABASE_URL="postgresql://grpc_user:grpc_password@localhost:5432/grpc_example?sslmode=disable" ./grpc-example
+
+# Full stack test: start everything and run client tests
+docker-test: docker-up
+    @echo "Waiting for services to be ready..."
+    @sleep 10
+    @echo "Running client tests against Docker stack..."
+    @# Add client test commands here
+    @echo "Tests complete!"
+
+# Diagnostic and debugging commands
+
+# Run comprehensive health check
+docker-check:
+    @./check-otel.sh
+
+# Check if Tempo has any traces
+docker-check-tempo:
+    @echo "Checking Tempo for traces..."
+    @curl -s 'http://localhost:3200/api/search/tag/service.name/values' | jq . || echo "Error querying Tempo"
+
+# View Otel-related logs from API
+docker-check-api-otel:
+    @echo "API OpenTelemetry initialization logs:"
+    @docker compose logs api | grep -i "otel\|trace.*initialized\|metric.*initialized" || echo "No Otel logs found"
+
+# Check collector activity
+docker-check-collector:
+    @echo "Recent collector activity:"
+    @docker compose logs --tail=20 otel-collector | grep -i "trace\|span\|export" || echo "No trace activity"
+
+# Make test requests to generate traces
+docker-generate-traces:
+    @echo "Generating test traces..."
+    @for i in 1 2 3 4 5; do \
+        echo "Request $$i..."; \
+        curl -sk https://localhost:11000/v1/users > /dev/null 2>&1; \
+        sleep 1; \
+    done
+    @echo "✓ Sent 5 test requests"
+    @echo "Check Grafana: http://localhost:3000/explore"
+
+# Open Grafana in browser
+docker-open-grafana:
+    @echo "Opening Grafana..."
+    @open http://localhost:3000 || xdg-open http://localhost:3000 || echo "Open http://localhost:3000 in your browser"
+
+# Test network connectivity (host → containers and container → container)
+docker-test-connectivity:
+    @echo "Testing network connectivity..."
+    @echo ""
+    @echo "=== Host → Container Connectivity ==="
+    @curl -s http://localhost:3000 > /dev/null && echo "✅ Grafana (localhost:3000)" || echo "❌ Grafana unreachable"
+    @curl -s http://localhost:3200/ready > /dev/null && echo "✅ Tempo (localhost:3200)" || echo "❌ Tempo unreachable"
+    @curl -s http://localhost:13133 > /dev/null && echo "✅ Otel Collector (localhost:13133)" || echo "❌ Collector unreachable"
+    @curl -sk https://localhost:11000/v1/users > /dev/null 2>&1 && echo "✅ API HTTP Gateway (localhost:11000)" || echo "❌ API Gateway unreachable"
+    @echo ""
+    @echo "=== Container → Container Connectivity (from API) ==="
+    @docker compose exec -T api sh -c "nc -zv -w2 rsyslog 514 2>&1" | grep -q "open" && echo "✅ API → Rsyslog (514)" || echo "❌ API → Rsyslog failed"
+    @docker compose exec -T api sh -c "nc -zv -w2 otel-collector 4317 2>&1" | grep -q "open" && echo "✅ API → Otel Collector (4317)" || echo "❌ API → Collector failed"
+    @docker compose exec -T api sh -c "nc -zv -w2 postgres 5432 2>&1" | grep -q "open" && echo "✅ API → PostgreSQL (5432)" || echo "❌ API → PostgreSQL failed"
+    @docker compose exec -T api sh -c "nc -zv -w2 tempo 3200 2>&1" | grep -q "open" && echo "✅ API → Tempo (3200)" || echo "❌ API → Tempo failed"
+    @docker compose exec -T api sh -c "nc -zv -w2 grafana 3000 2>&1" | grep -q "open" && echo "✅ API → Grafana (3000)" || echo "❌ API → Grafana failed"
+    @echo ""
+    @echo "Connectivity test complete!"
+
+# Inspect Docker network details
+docker-network-inspect:
+    @echo "=== grpc-network Details ==="
+    @docker network inspect grpc-network | jq '.[0].Containers | to_entries[] | {Name: .value.Name, IP: .value.IPv4Address, Container: .key[0:12]}'
+
+# Complete diagnostic workflow
+docker-diagnose: docker-check docker-check-tempo docker-check-api-otel docker-check-collector docker-test-connectivity
+    @echo ""
+    @echo "Diagnostic complete. If no traces found, try:"
+    @echo "  1. just docker-generate-traces"
+    @echo "  2. just docker-check-tempo"
+    @echo "  3. just docker-open-grafana"

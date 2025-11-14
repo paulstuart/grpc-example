@@ -1,0 +1,185 @@
+services:
+  # Centralized Logging (Rsyslog)
+  rsyslog:
+    build:
+      context: .
+      dockerfile: Dockerfile.rsyslog
+    container_name: grpc-rsyslog
+    ports:
+      - "514:514/udp"  # Syslog UDP
+      - "514:514/tcp"  # Syslog TCP
+    volumes:
+      - rsyslog_data:/var/log/remote
+    networks:
+      grpc-network:
+        ipv4_address: 172.21.0.10
+    healthcheck:
+      test: ["CMD", "pgrep", "rsyslogd"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: grpc-postgres
+    environment:
+      POSTGRES_DB: grpc_example
+      POSTGRES_USER: grpc_user
+      POSTGRES_PASSWORD: grpc_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U grpc_user -d grpc_example"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - grpc-network
+    logging:
+      driver: syslog
+      options:
+        syslog-address: "udp://172.21.0.10:514"
+        tag: "postgres"
+        syslog-facility: "daemon"
+        syslog-format: "rfc5424"
+    depends_on:
+      rsyslog:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # OpenTelemetry Collector
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: grpc-otel-collector
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "4317:4317"   # OTLP gRPC receiver
+      - "4318:4318"   # OTLP HTTP receiver
+      - "8888:8888"   # Prometheus metrics exposed by the collector
+      - "8889:8889"   # Prometheus exporter metrics
+      - "13133:13133" # health_check extension
+    depends_on:
+      tempo:
+        condition: service_started
+      rsyslog:
+        condition: service_healthy
+    networks:
+      - grpc-network
+    logging:
+      driver: syslog
+      options:
+        syslog-address: "udp://172.21.0.10:514"
+        tag: "otel-collector"
+        syslog-facility: "daemon"
+        syslog-format: "rfc5424"
+    restart: unless-stopped
+
+  # Grafana Tempo (Tracing Backend)
+  tempo:
+    image: grafana/tempo:latest
+    container_name: grpc-tempo
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./tempo-config.yaml:/etc/tempo.yaml
+      - tempo_data:/var/tempo
+    ports:
+      - "3200:3200"   # Tempo HTTP
+      - "4317"        # OTLP gRPC (internal)
+    networks:
+      - grpc-network
+    logging:
+      driver: syslog
+      options:
+        syslog-address: "udp://172.21.0.10:514"
+        tag: "tempo"
+        syslog-facility: "daemon"
+        syslog-format: "rfc5424"
+    depends_on:
+      rsyslog:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Grafana (Visualization)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grpc-grafana
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+      - ./grafana-dashboards.yaml:/etc/grafana/provisioning/dashboards/dashboards.yaml
+      - ./dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      tempo:
+        condition: service_started
+      rsyslog:
+        condition: service_healthy
+    networks:
+      - grpc-network
+    logging:
+      driver: syslog
+      options:
+        syslog-address: "udp://172.21.0.10:514"
+        tag: "grafana"
+        syslog-facility: "daemon"
+        syslog-format: "rfc5424"
+    restart: unless-stopped
+
+  # gRPC API Server (scalable)
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      GRPC_PORT: 10000
+      GRPC_GATEWAY_PORT: 11000
+      GRPC_HOST: 0.0.0.0
+      OTEL_ENABLED: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: otel-collector:4317
+      SERVICE_NAME: grpc-example-api
+      ENVIRONMENT: docker
+      DATABASE_URL: postgresql://grpc_user:grpc_password@postgres:5432/grpc_example?sslmode=disable
+    ports:
+      - "10000-10010:10000"  # gRPC ports (allows scaling)
+      - "11000-11010:11000"  # HTTP Gateway ports (allows scaling)
+    depends_on:
+      postgres:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+      rsyslog:
+        condition: service_healthy
+    networks:
+      - grpc-network
+    logging:
+      driver: syslog
+      options:
+        syslog-address: "udp://172.21.0.10:514"
+        tag: "grpc-api"
+        syslog-facility: "daemon"
+        syslog-format: "rfc5424"
+    restart: unless-stopped
+    # Scale this service using: docker compose up --scale api=3
+
+volumes:
+  postgres_data:
+  tempo_data:
+  grafana_data:
+  rsyslog_data:
+
+networks:
+  grpc-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
