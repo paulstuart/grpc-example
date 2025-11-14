@@ -166,10 +166,12 @@ func main() {
 	// Optionally add auth
 	if *enableAuth {
 		jwtMgr := interceptors.NewJWTManager(secretKey, time.Hour*24, jwtIssuer)
-		unaryInterceptors = append(unaryInterceptors, interceptors.JWTAuthUnaryInterceptor(jwtMgr))
-		streamInterceptors = append(streamInterceptors, interceptors.JWTAuthStreamInterceptor(jwtMgr))
+		var approver interceptors.FakeClaimsApprover     // TODO: replace with real RBAC approver
+		jm := interceptors.NewApprover(jwtMgr, approver) //auth.MyApprover{jwtManager: jwtMgr}
+		unaryInterceptors = append(unaryInterceptors, interceptors.JWTAuthUnaryInterceptor(jm))
+		streamInterceptors = append(streamInterceptors, interceptors.JWTAuthStreamInterceptor(jm))
 		// log.Println("Authentication interceptor enabled - use 'authorization: demo-api-key-12345' in metadata")
-		log.Println("Authentication interceptor enabled - using JWT tokens for Bearer auth")
+		log.Println("Authentication interceptor enabled - using JWT tokens for Bear")
 	}
 
 	// Chain interceptors

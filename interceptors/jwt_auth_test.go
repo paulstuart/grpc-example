@@ -20,8 +20,9 @@ const (
 	testIssuer = "grpc-example-test"
 )
 
-func setupTestJWTManager() *auth.JWTManager {
-	return auth.NewJWTManager(testSecret, 1*time.Hour, testIssuer)
+func setupTestJWTManager() auth.Approver {
+	jm := auth.NewJWTManager(testSecret, 1*time.Hour, testIssuer)
+	return NewApprover(jm, FakeClaimsApprover{})
 }
 
 func TestJWTAuthUnaryInterceptor(t *testing.T) {

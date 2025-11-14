@@ -37,7 +37,7 @@ func AuthUnaryInterceptor() grpc.UnaryServerInterceptor {
 			return nil, err
 		}
 
-		log.Printf("[Auth] Authorized access to %s", info.FullMethod)
+		log.Printf("[Auth] WE HAVE Authorized access to %s", info.FullMethod)
 		return handler(ctx, req)
 	}
 }

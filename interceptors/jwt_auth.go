@@ -2,8 +2,8 @@ package interceptors
 
 import (
 	"context"
-	"fmt"
 	"log"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -18,8 +18,41 @@ import (
 // contextKey is a custom type for context keys to avoid collisions
 type contextKey string
 
+type JWTApprover struct {
+	*auth.JWTManager
+	auth.ClaimsApprover
+}
+
+// NewApprover creates a new JWT Approver with the given JWT manager and ClaimsApprover
+func NewApprover(jwtManager *auth.JWTManager, appr auth.ClaimsApprover) auth.Approver {
+	ap := JWTApprover{
+		jwtManager,
+		appr,
+	}
+	return ap
+}
+
+// FakeClaimsApprover is a stub implementation of ClaimsApprover for demonstration purposes
+type FakeClaimsApprover struct{}
+
+// ValidMethod should be passed in from the RBAC package
+func (my FakeClaimsApprover) ValidMethod(fullMethod string, claim *auth.Claims) error {
+	// Implement method-specific validation if needed
+	switch {
+	case fullMethod == "/proto.UserService/ListUsers" && claim.Email == "hello@example.com":
+		return auth.ErrInvalidClaims
+	case fullMethod == "/proto.UserService/ListUsers" && claim.Username == "mynameismud":
+		return auth.ErrNoPermission // just so we can see different errors
+	default:
+
+	}
+	slog.Info("====> FakeClaimsApprover automatically validating method", "method", fullMethod, "user", claim.Username)
+	return nil
+}
+
 const (
 	// ClaimsContextKey is the key used to store JWT claims in context
+	// TODO: make this dynamic?
 	ClaimsContextKey contextKey = "jwt_claims"
 )
 
@@ -31,7 +64,7 @@ func NewJWTManager(secretKey string, tokenDuration time.Duration, issuer string)
 }
 
 // JWTAuthUnaryInterceptor provides JWT authentication for unary RPCs
-func JWTAuthUnaryInterceptor(jwtManager *auth.JWTManager) grpc.UnaryServerInterceptor {
+func JWTAuthUnaryInterceptor(vapid auth.Approver) grpc.UnaryServerInterceptor {
 	return func(
 		ctx context.Context,
 		req any,
@@ -42,10 +75,16 @@ func JWTAuthUnaryInterceptor(jwtManager *auth.JWTManager) grpc.UnaryServerInterc
 		if isPublicMethod(info.FullMethod) {
 			return handler(ctx, req)
 		}
-		claims, err := validateJWT(ctx, jwtManager)
+		claims, err := validateJWT(ctx, vapid)
 		if err != nil {
 			log.Printf("[JWT Auth] Unauthorized access attempt to %s: %v", info.FullMethod, err)
 			return nil, err
+		}
+		// TODO: any call for special handling of errors here? Extend auth.Approver?
+		if err := vapid.ValidMethod(info.FullMethod, claims); err != nil {
+			log.Printf("[JWT Auth] Forbidden stream access attempt to %s by user %s: %v",
+				info.FullMethod, claims.Username, err)
+			return nil, status.Error(codes.PermissionDenied, "insufficient permissions for method")
 		}
 
 		// Add claims to context for downstream use
@@ -57,7 +96,7 @@ func JWTAuthUnaryInterceptor(jwtManager *auth.JWTManager) grpc.UnaryServerInterc
 }
 
 // JWTAuthStreamInterceptor provides JWT authentication for streaming RPCs
-func JWTAuthStreamInterceptor(jwtManager *auth.JWTManager) grpc.StreamServerInterceptor {
+func JWTAuthStreamInterceptor(jwtManager auth.Approver) grpc.StreamServerInterceptor {
 	return func(
 		srv interface{},
 		ss grpc.ServerStream,
@@ -75,6 +114,12 @@ func JWTAuthStreamInterceptor(jwtManager *auth.JWTManager) grpc.StreamServerInte
 			return err
 		}
 
+		if err := jwtManager.ValidMethod(info.FullMethod, claims); err != nil {
+			log.Printf("[JWT Auth] Forbidden stream access attempt to %s by user %s: %v",
+				info.FullMethod, claims.Username, err)
+			return status.Error(codes.PermissionDenied, "insufficient permissions for method")
+		}
+
 		// Create wrapped stream with claims in context
 		wrappedStream := &serverStreamWithContext{
 			ServerStream: ss,
@@ -88,7 +133,7 @@ func JWTAuthStreamInterceptor(jwtManager *auth.JWTManager) grpc.StreamServerInte
 }
 
 // validateJWT extracts and validates the JWT token from context
-func validateJWT(ctx context.Context, jwtManager *auth.JWTManager) (*auth.Claims, error) {
+func validateJWT(ctx context.Context, jwtManager auth.Approver) (*auth.Claims, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		return nil, status.Error(codes.Unauthenticated, "missing metadata")
@@ -116,7 +161,8 @@ func validateJWT(ctx context.Context, jwtManager *auth.JWTManager) (*auth.Claims
 	if err != nil {
 		return nil, status.Error(codes.Unauthenticated, err.Error())
 	}
-	fmt.Printf("Validated JWT for user: %s\n", claims.Username)
+
+	// fmt.Printf("Validated JWT for user: %s\n", claims.Username)
 
 	return claims, nil
 }

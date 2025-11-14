@@ -15,11 +15,19 @@ var (
 	ErrExpiredToken = errors.New("token has expired")
 	// ErrInvalidClaims is returned when claims are invalid
 	ErrInvalidClaims = errors.New("invalid token claims")
+	// ErrNoPermission is returned when user lacks required permissions
+	ErrNoPermission = errors.New("no permission for you")
 )
 
+type ClaimsApprover interface {
+	ValidMethod(fullMethod string, claim *Claims) error
+}
+
 type Approver interface {
+	ClaimsApprover
 	ValidateToken(tokenString string) (*Claims, error)
-	ValidMethod(fullMethod string) error
+	// GenerateToken is used for tests -- TODO: tidy up interface?
+	GenerateToken(userID, username, email string, roles []string) (string, error)
 }
 
 // Claims represents the JWT claims
@@ -29,6 +37,29 @@ type Claims struct {
 	Email    string   `json:"email"`
 	Roles    []string `json:"roles"`
 	jwt.RegisteredClaims
+}
+
+// ClaimInfo is a simplified version of Claims for auth consumers to use as a copy
+// of the actual claim so that it cannot be modified.
+type ClaimInfo struct {
+	UserID   string   `json:"user_id"`
+	Username string   `json:"username"`
+	Email    string   `json:"email"`
+	Roles    []string `json:"roles"`
+}
+
+// GetInfo makes Claims a ClaimHolder
+func (c *Claims) GetInfo() *ClaimInfo {
+	return &ClaimInfo{
+		UserID:   c.UserID,
+		Username: c.Username,
+		Email:    c.Email,
+		Roles:    c.Roles[:],
+	}
+}
+
+type ClaimHolder interface {
+	GetInfo() *ClaimInfo
 }
 
 // JWTManager handles JWT token generation and validation

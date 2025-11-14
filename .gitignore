@@ -1,6 +1,7 @@
 .vscode
 *.key
 *.bak
+*.log
 newtoken.txt
 testtoken
 
