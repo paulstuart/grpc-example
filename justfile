@@ -116,6 +116,47 @@ check: lint test
 lint:
     golangci-lint run ./...
 
+# JWT Authentication targets
+
+# Build the JWT token generator
+build-tokengen:
+    @#echo >&2 "Building token generator..."
+    go build -o tokengen cmd/tokengen/main.go
+
+# Generate a JWT token (use with JWT_SECRET env var or pass -secret flag)
+# Example: just gen-token user-id=123 username=john email=john@example.com
+# Or with JWT_SECRET: JWT_SECRET=my-secret just gen-token user-id=123 username=john email=john@example.com
+gen-token user-id username email roles="user" duration="24h": build-tokengen
+    @./tokengen -user-id={{user-id}} -username={{username}} -email={{email}} -roles={{roles}} -duration={{duration}}
+
+# Run unit tests for auth package
+test-auth:
+    @echo "Running auth package tests..."
+    go test -v ./auth/...
+
+# Run integration tests for JWT auth interceptors
+test-auth-integration:
+    @echo "Running auth integration tests..."
+    go test -v ./interceptors/...
+
+# Run all auth tests
+test-auth-all: test-auth test-auth-integration
+    @echo "All auth tests completed!"
+
+# Validate a JWT token
+# Example: JWT_SECRET=my-secret just validate-token "eyJ..."
+validate-token token:
+    @./grpc-example -validate="{{token}}"
+
+# Generate a token and run the client with it
+# Example: JWT_SECRET=my-secret just run-with-auth user-id=123 username=john email=john@example.com
+run-with-auth user-id username email roles="user": build-client build-tokengen
+    #!/usr/bin/env bash
+    set -euo pipefail
+    TOKEN=$(./tokengen -user-id={{user-id}} -username={{username}} -email={{email}} -roles={{roles}} 2>/dev/null)
+    echo "Using token for user: {{username}}" >&2
+    ./client -token="$TOKEN"
+
 CERTS_DIR := "certs"
 SERVER_CERT := CERTS_DIR + "/server.crt"
 SERVER_KEY := CERTS_DIR + "/server.key"

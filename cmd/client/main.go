@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -22,6 +23,7 @@ import (
 var (
 	serverAddr   = flag.String("server", "localhost:10000", "gRPC server address")
 	insecureConn = flag.Bool("insecure", false, "use insecure connection")
+	jwtToken     = flag.String("token", "", "JWT token for authentication (optional)")
 )
 
 func main() {
@@ -53,6 +55,13 @@ func main() {
 
 	client := pb.NewUserServiceClient(conn)
 	ctx := context.Background()
+
+	// Add JWT token to context if provided
+	if *jwtToken != "" {
+		log.Println("Using JWT authentication")
+		md := metadata.Pairs("authorization", "Bearer "+*jwtToken)
+		ctx = metadata.NewOutgoingContext(ctx, md)
+	}
 
 	// Demonstrate all RPC patterns
 	separator := "============================================================"
@@ -161,7 +170,10 @@ func demonstrateGetUser(ctx context.Context, client pb.UserServiceClient) {
 
 	log.Printf("✓ Retrieved user: %s (ID: %d, Role: %s)", user.Username, user.Id, user.Role)
 	log.Printf("  Email: %s", user.GetEmail())
-	log.Printf("  Profile: %s", user.Profile.DisplayName)
+	if user.Profile != nil {
+		log.Printf("  Profile: %s", user.Profile.DisplayName)
+	}
+	// log.Printf("  Profile: %s", user.Profile.DisplayName)
 	log.Printf("  Tags: %v", user.Tags)
 	log.Printf("  Metadata: %v", user.Metadata)
 }

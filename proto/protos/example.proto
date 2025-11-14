@@ -1,0 +1,238 @@
+syntax="proto3";
+
+// gRPC Example
+//
+// This example demonstrates comprehensive gRPC and Protocol Buffers features
+package proto;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/field_mask.proto";
+import "google/api/annotations.proto";
+
+option go_package = "github.com/paulstuart/grpc-example/proto/pkg";
+
+// UserService demonstrates all gRPC patterns:
+// - Unary RPC
+// - Server Streaming RPC
+// - Client Streaming RPC
+// - Bidirectional Streaming RPC
+service UserService {
+    // Unary RPC: Add a single user
+    rpc AddUser(User) returns (google.protobuf.Empty) {
+        option (google.api.http) = {
+            post: "/api/v1/users"
+            body: "*"
+        };
+    }
+
+    // Server Streaming RPC: List users with filters
+    rpc ListUsers(ListUsersRequest) returns (stream User) {
+        option (google.api.http) = {
+            get: "/api/v1/users"
+        };
+    }
+
+    // Server Streaming RPC: List users by role
+    rpc ListUsersByRole(UserRole) returns (stream User) {
+        option (google.api.http) = {
+            get: "/api/v1/users/role/{role}"
+        };
+    }
+
+    // Unary RPC: Update a user with field mask
+    rpc UpdateUser(UpdateUserRequest) returns (User) {
+        option (google.api.http) = {
+            patch: "/api/v1/users/{user.id}"
+            body: "*"
+        };
+    }
+
+    // Unary RPC: Get a single user by ID
+    rpc GetUser(GetUserRequest) returns (User) {
+        option (google.api.http) = {
+            get: "/api/v1/users/{id}"
+        };
+    }
+
+    // Unary RPC: Delete a user
+    rpc DeleteUser(DeleteUserRequest) returns (google.protobuf.Empty) {
+        option (google.api.http) = {
+            delete: "/api/v1/users/{id}"
+        };
+    }
+
+    // Client Streaming RPC: Batch add multiple users
+    // Client sends stream of users, server responds with summary
+    rpc BatchAddUsers(stream User) returns (BatchAddUsersResponse) {
+        option (google.api.http) = {
+            post: "/api/v1/users/batch"
+            body: "*"
+        };
+    }
+
+    // Bidirectional Streaming RPC: User activity stream
+    // Both client and server send streams of messages
+    rpc UserActivityStream(stream UserActivity) returns (stream UserActivityResponse) {}
+
+    // Bidirectional Streaming RPC: Real-time user updates
+    // Client sends user updates, server responds with validation results
+    rpc SyncUsers(stream User) returns (stream SyncUserResponse) {}
+}
+
+// Role enumeration
+enum Role {
+    GUEST = 0;
+    MEMBER = 1;
+    ADMIN = 2;
+    MODERATOR = 3;
+}
+
+// Status enumeration
+enum UserStatus {
+    INACTIVE = 0;
+    ACTIVE = 1;
+    SUSPENDED = 2;
+    DELETED = 3;
+}
+
+// User message with comprehensive protobuf features
+message User {
+    uint32 id = 1;
+    Role role = 2;
+    google.protobuf.Timestamp create_date = 3;
+    string username = 4;
+
+    // Oneof: demonstrate exclusive field selection
+    oneof contact_info {
+        string email = 5;
+        string phone = 6;
+    }
+
+    // Nested message
+    Profile profile = 7;
+
+    // Repeated field
+    repeated string tags = 8;
+
+    // Map field
+    map<string, string> metadata = 9;
+
+    UserStatus status = 10;
+    google.protobuf.Timestamp last_login = 11;
+
+    // Repeated nested messages
+    repeated Address addresses = 12;
+}
+
+// Nested message example
+message Profile {
+    string display_name = 1;
+    string bio = 2;
+    string avatar_url = 3;
+    google.protobuf.Timestamp date_of_birth = 4;
+
+    // Nested map
+    map<string, int32> preferences = 5;
+}
+
+// Another nested message
+message Address {
+    enum AddressType {
+        HOME = 0;
+        WORK = 1;
+        OTHER = 2;
+    }
+
+    AddressType type = 1;
+    string street = 2;
+    string city = 3;
+    string state = 4;
+    string postal_code = 5;
+    string country = 6;
+    bool is_primary = 7;
+}
+
+message UserRole {
+    Role role = 1;
+}
+
+message UpdateUserRequest {
+    // The user resource which replaces the resource on the server.
+    User user = 1;
+
+    // The update mask applies to the resource.
+    google.protobuf.FieldMask update_mask = 2;
+}
+
+message ListUsersRequest {
+    // Only list users created after this timestamp
+    google.protobuf.Timestamp created_since = 1;
+
+    // Only list users older than this Duration
+    google.protobuf.Duration older_than = 2;
+
+    // Filter by status
+    UserStatus status = 3;
+
+    // Pagination
+    int32 page_size = 4;
+    string page_token = 5;
+}
+
+message GetUserRequest {
+    uint32 id = 1;
+}
+
+message DeleteUserRequest {
+    uint32 id = 1;
+}
+
+// Response for batch add operation
+message BatchAddUsersResponse {
+    int32 total_received = 1;
+    int32 total_added = 2;
+    int32 total_failed = 3;
+    repeated string errors = 4;
+    google.protobuf.Timestamp processed_at = 5;
+}
+
+// User activity for bidirectional streaming
+message UserActivity {
+    uint32 user_id = 1;
+
+    enum ActivityType {
+        LOGIN = 0;
+        LOGOUT = 1;
+        UPDATE_PROFILE = 2;
+        VIEW_PAGE = 3;
+        CLICK_BUTTON = 4;
+    }
+
+    ActivityType activity_type = 2;
+    google.protobuf.Timestamp timestamp = 3;
+    map<string, string> details = 4;
+}
+
+message UserActivityResponse {
+    uint32 user_id = 1;
+    bool acknowledged = 2;
+    string message = 3;
+    google.protobuf.Timestamp processed_at = 4;
+}
+
+// Sync response for bidirectional streaming
+message SyncUserResponse {
+    uint32 user_id = 1;
+
+    enum SyncStatus {
+        SUCCESS = 0;
+        FAILED = 1;
+        PARTIAL = 2;
+    }
+
+    SyncStatus status = 2;
+    string error_message = 3;
+    repeated string updated_fields = 4;
+}

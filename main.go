@@ -30,14 +30,30 @@ var (
 	defaultPort = DefaultEnv("GRPC_PORT", 10000)
 	defaultRest = DefaultEnv("GRPC_GATEWAY_PORT", 11000)
 	defaultHost = DefaultEnv("GRPC_HOST", "localhost")
+	// Use JWT_SECRET if set, otherwise fall back to GRPC_SECRET_KEY
+	secretKey = getJWTSecret()
+	jwtIssuer = DefaultEnv("GRPC_ISSUER", "grpc-example")
 
-	gRPCPort     = flag.Int("grpc-port", defaultPort, "The gRPC server port")
-	gatewayPort  = flag.Int("gateway-port", defaultRest, "The gRPC-Gateway server port")
-	nocheck      = flag.Bool("insecure", false, "don't complain about self-signed certs")
-	enableAuth   = flag.Bool("enable-auth", false, "enable authentication interceptor")
-	printMetrics = flag.Bool("print-metrics", false, "print metrics on shutdown")
-	hostname     = flag.String("host", defaultHost, "bind to host address")
+	gRPCPort      = flag.Int("grpc-port", defaultPort, "The gRPC server port")
+	gatewayPort   = flag.Int("gateway-port", defaultRest, "The gRPC-Gateway server port")
+	nocheck       = flag.Bool("insecure", false, "don't complain about self-signed certs")
+	enableAuth    = flag.Bool("enable-auth", false, "enable authentication interceptor")
+	printMetrics  = flag.Bool("print-metrics", false, "print metrics on shutdown")
+	hostname      = flag.String("host", defaultHost, "bind to host address")
+	validateToken = flag.String("validate", "", "validate this JWT token and exit")
 )
+
+// getJWTSecret returns the JWT secret key from environment variables
+// Priority: JWT_SECRET > GRPC_SECRET_KEY > default
+func getJWTSecret() string {
+	if secret := os.Getenv("JWT_SECRET"); secret != "" {
+		return secret
+	}
+	if secret := os.Getenv("GRPC_SECRET_KEY"); secret != "" {
+		return secret
+	}
+	return "our little secret"
+}
 
 func DefaultEnv[T any](name string, def T) T {
 	if val, ok := os.LookupEnv(name); ok {
@@ -103,6 +119,18 @@ func serveOpenAPI(mux *http.ServeMux) error {
 func main() {
 	flag.Parse()
 
+	if *validateToken != "" {
+		secretKey := secretKey
+		jwtMgr := interceptors.NewJWTManager(secretKey, time.Hour*24, jwtIssuer)
+		claims, err := jwtMgr.ValidateToken(*validateToken)
+		if err != nil {
+			log.Fatalf("Token validation failed: %v", err)
+		}
+		log.Printf("Token is valid. Claims: Username=%s, Roles=%v, IssuedAt=%v, ExpiresAt=%v",
+			claims.Username, claims.Roles, claims.IssuedAt, claims.ExpiresAt)
+		return
+	}
+
 	log.Println("Starting gRPC Example Server...")
 	log.Printf("gRPC Port: %d", *gRPCPort)
 	log.Printf("Gateway Port: %d", *gatewayPort)
@@ -137,9 +165,11 @@ func main() {
 
 	// Optionally add auth
 	if *enableAuth {
-		unaryInterceptors = append(unaryInterceptors, interceptors.AuthUnaryInterceptor())
-		streamInterceptors = append(streamInterceptors, interceptors.AuthStreamInterceptor())
-		log.Println("Authentication interceptor enabled - use 'authorization: demo-api-key-12345' in metadata")
+		jwtMgr := interceptors.NewJWTManager(secretKey, time.Hour*24, jwtIssuer)
+		unaryInterceptors = append(unaryInterceptors, interceptors.JWTAuthUnaryInterceptor(jwtMgr))
+		streamInterceptors = append(streamInterceptors, interceptors.JWTAuthStreamInterceptor(jwtMgr))
+		// log.Println("Authentication interceptor enabled - use 'authorization: demo-api-key-12345' in metadata")
+		log.Println("Authentication interceptor enabled - using JWT tokens for Bearer auth")
 	}
 
 	// Chain interceptors

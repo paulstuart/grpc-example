@@ -1,4 +1,11 @@
 .vscode
-
-grpc-example
+*.key
 *.bak
+newtoken.txt
+testtoken
+
+client
+grpc-example
+tokengen
+#cmd/tokengen/tokengen
+

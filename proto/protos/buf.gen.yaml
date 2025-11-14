@@ -1,0 +1,18 @@
+version: v1
+plugins:
+  # Generate Go code with protoc-gen-go
+  - name: go
+    out: ../pkg
+    opt:
+      - paths=source_relative
+  # Generate Go gRPC code
+  - name: go-grpc
+    out: ../pkg
+    opt:
+      - paths=source_relative
+  # Generate gRPC-Gateway code
+  - name: grpc-gateway
+    out: ../pkg
+    opt:
+      - paths=source_relative
+      - generate_unbound_methods=true
