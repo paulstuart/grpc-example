@@ -1,3 +1,5 @@
+SERVER_NAME := "pauleyphonic"
+
 # Default recipe to display help information
 default:
     @just --list
@@ -181,11 +183,11 @@ gen-certs:
     @openssl req -x509 -new -nodes -key {{SERVER_KEY}} -sha256 -days 365 \
         -out {{SERVER_CERT}} \
         -subj "/C=US/ST=State/L=City/O=Organization/CN=localhost" \
-        -addext "subjectAltName=DNS:localhost,DNS:*.localhost,DNS:pauleyphonic,IP:127.0.0.1,IP:0.0.0.0,IP:192.168.1.6" 2>/dev/null
+        -addext "subjectAltName=DNS:localhost,DNS:*.localhost,DNS:{{SERVER_NAME}},IP:127.0.0.1,IP:0.0.0.0,IP:192.168.1.6" 2>/dev/null
     @echo "✓ Generated certificates in {{CERTS_DIR}}/"
     @echo "  Certificate: {{SERVER_CERT}}"
     @echo "  Private Key: {{SERVER_KEY}}"
-    @echo "  SANs: localhost, *.localhost, pauleyphonic, 127.0.0.1, 0.0.0.0, 192.168.1.6"
+    @echo "  SANs: localhost, *.localhost, {{SERVER_NAME}}, 127.0.0.1, 0.0.0.0, 192.168.1.6"
 
 # Generate Let's Encrypt certificates (for production use)
 certs:
@@ -201,10 +203,10 @@ signtls: serverkey
     openssl req -x509 -new -nodes -key {{SERVER_KEY}} -sha256 -days 365 \
         -out {{SERVER_CERT}} \
         -subj "/C=US/ST=State/L=City/O=Organization/CN=localhost" \
-        -addext "subjectAltName=DNS:localhost,DNS:*.localhost,DNS:pauleyphonic,IP:127.0.0.1,IP:0.0.0.0,IP:192.168.1.6"
+        -addext "subjectAltName=DNS:localhost,DNS:*.localhost,DNS:{{SERVER_NAME}},IP:127.0.0.1,IP:0.0.0.0,IP:192.168.1.6"
 
 sample-server:
-    ./grpc-example -host pauleyphonic -enable-auth |& tee run5.log
+    ./grpc-example -host {{SERVER_NAME}} -enable-auth |& tee run5.log
 
 sample-client:
-   ./client -server pauleyphonic:10000 -token $(cat testtoken) |& tee client01.log
+   ./client -server {{SERVER_NAME}}:10000 -token $(cat testtoken) |& tee client01.log

@@ -56,6 +56,10 @@ nGJMtCztdc2DqxoFcBThVTmZ8F9XIRmBLxmcHlUYjwwTSp0Wo4ppwA==
 -----END RSA PRIVATE KEY-----
 `
 
+// TODO: this should probably be generated at runtime so there's no
+// cerbot complaints about checking in creds. Also may be a better
+// way to do this with Go 1.20+ using tls.CertificateGenerator
+
 var (
 	// Cert is a self signed certificate
 	Cert tls.Certificate

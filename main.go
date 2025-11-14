@@ -12,6 +12,7 @@ import (
 	"mime"
 	"net"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
@@ -44,6 +45,7 @@ var (
 	validateToken = flag.String("validate", "", "validate this JWT token and exit")
 	certFile      = flag.String("cert", "certs/server.crt", "TLS certificate file")
 	keyFile       = flag.String("key", "certs/server.key", "TLS key file")
+	pprofAddr     = flag.String("pprof", "", "enable pprof HTTP server on this address (e.g., localhost:6060)")
 )
 
 // getJWTSecret returns the JWT secret key from environment variables
@@ -127,6 +129,61 @@ var content embed.FS
 
 func init() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
+}
+
+// func XserverPProf(mux http.ServeMux, addr string) {
+// 	{
+// 		log.Printf("Starting pprof server on %s", addr)
+// 		if err := http.ListenAndServe(addr, nil); err != nil {
+// 			log.Fatalf("pprof server failed: %v", err)
+// 		}
+// 	}
+// }
+
+const pprofPrefix = "/debug/pprof/"
+
+// serverPProf starts a dedicated HTTP server for pprof profiling endpoints
+// It creates a new mux and registers all standard pprof handlers at the specified prefix
+// TODO: if the same addr as another server than add it to that
+func serverPProf(addr, prefix string) {
+	mux := http.NewServeMux()
+
+	// Register all pprof handlers at the specified prefix
+	// The handlers registered are:
+	// - /debug/pprof/          - index page with links to all profiles
+	// - /debug/pprof/cmdline   - command line that started the program
+	// - /debug/pprof/profile   - CPU profile (30 seconds by default)
+	// - /debug/pprof/symbol    - symbol lookup
+	// - /debug/pprof/trace     - execution trace
+	// - /debug/pprof/heap      - heap profile
+	// - /debug/pprof/goroutine - goroutine stack traces
+	// - /debug/pprof/threadcreate - thread creation profile
+	// - /debug/pprof/block     - blocking profile
+	// - /debug/pprof/mutex     - mutex contention profile
+	// - /debug/pprof/allocs    - memory allocation profile
+
+	mux.HandleFunc(prefix, pprof.Index)
+	mux.HandleFunc(prefix+"cmdline", pprof.Cmdline)
+	mux.HandleFunc(prefix+"profile", pprof.Profile)
+	mux.HandleFunc(prefix+"symbol", pprof.Symbol)
+	mux.HandleFunc(prefix+"trace", pprof.Trace)
+
+	// These handlers are served via pprof.Index for runtime profiles
+	// but we need to register them explicitly for direct access
+	mux.Handle(prefix+"heap", pprof.Handler("heap"))
+	mux.Handle(prefix+"goroutine", pprof.Handler("goroutine"))
+	mux.Handle(prefix+"threadcreate", pprof.Handler("threadcreate"))
+	mux.Handle(prefix+"block", pprof.Handler("block"))
+	mux.Handle(prefix+"mutex", pprof.Handler("mutex"))
+	mux.Handle(prefix+"allocs", pprof.Handler("allocs"))
+
+	if prefix != "/" {
+		mux.Handle("/", http.RedirectHandler(prefix, http.StatusTemporaryRedirect)) // redirect root to pprof prefix
+	}
+	log.Printf("Serving pprof services on http://%s%s", addr, prefix)
+	if err := http.ListenAndServe(addr, mux); err != nil {
+		log.Fatalf("pprof server failed: %v", err)
+	}
 }
 
 // serveOpenAPI serves an OpenAPI UI on /openapi-ui/
@@ -295,6 +352,11 @@ func main() {
 			log.Fatalf("Failed to serve HTTP gateway: %v", err)
 		}
 	}()
+
+	// Start pprof server if enabled
+	if *pprofAddr != "" {
+		go serverPProf(*pprofAddr, pprofPrefix)
+	}
 
 	log.Println("Server started successfully!")
 	log.Println("Press Ctrl+C to shutdown...")

@@ -1,6 +1,31 @@
- * Merge in cmd/respawn for nonstop services
- * Look at enabling zStd compression in gRPC -- https://pkg.go.dev/google.golang.org/grpc@v1.38.0/encoding#RegisterCompressor
- * zStd compression dictionaries: https://github.com/facebook/zstd
+# Things to make this better
+
+* More tests!
+  - use httptest.Recorder and friends
+* Get profiler support with flame graphs
+* RBAC UX
+* Demo Hashicorp plugin architecture
+* PoC working from swagger docs to generate
+* Otel spans in intercepter
+* Set up Otel collector
+* Set docker compose (first)
+  - Server (N+1)
+  - Collector
+  - DB
+  - Metrics
+  - Grafana
+* Set up k8s (n+1 grpc servers, otel-collector, postgres)
+* Merge in cmd/respawn for nonstop services
+* Extend storage layer to include databases
+  - SQLite and Postgres
+  - sqlc for generating schemas
+* Add simple UX to get a CRUD demo against APIs
+  - Use HTMX
+* Leverage zStd
+  - Look at enabling zStd compression in gRPC -- https://pkg.go.dev/google.golang.org/grpc@v1.38.0/encoding#RegisterCompressor
+  - zStd compression dictionaries: https://github.com/facebook/zstd
+  - Identify training sets
+  - Coordinate updating dicts
 
 Dictionary info below:
 

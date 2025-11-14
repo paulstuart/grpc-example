@@ -181,7 +181,7 @@ just test-auth-all
 - `JWT_SECRET`: Secret key for signing tokens (recommended, used by both server and tokengen)
 - `GRPC_SECRET_KEY`: Alternative secret key (deprecated, use JWT_SECRET instead)
 
-**Important**: The server will check for `JWT_SECRET` first, then fall back to `GRPC_SECRET_KEY`. Always use `JWT_SECRET` for consistency between the server and token generator.
+**Important**: The server will check for `JWT_SECRET` first, then fall back to `GRPC_SECRET_KEY`. Always use `JWT_SECRET` for consistency between the server and token generator. TODO: pick one. `GRPC_` may be a good common them to stick to
 
 ### Server Flags
 
