@@ -3,6 +3,7 @@ package auth
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -160,20 +161,12 @@ func (m *JWTManager) RefreshToken(tokenString string) (string, error) {
 
 // HasRole checks if the claims contain a specific role
 func (c *Claims) HasRole(role string) bool {
-	for _, r := range c.Roles {
-		if r == role {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(c.Roles, role)
 }
 
 // HasAnyRole checks if the claims contain any of the specified roles
 func (c *Claims) HasAnyRole(roles ...string) bool {
-	for _, role := range roles {
-		if c.HasRole(role) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(roles, func(r string) bool {
+		return slices.Contains(c.Roles, r)
+	})
 }
