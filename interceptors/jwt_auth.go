@@ -34,7 +34,7 @@ func NewJWTManager(secretKey string, tokenDuration time.Duration, issuer string)
 func JWTAuthUnaryInterceptor(jwtManager *auth.JWTManager) grpc.UnaryServerInterceptor {
 	return func(
 		ctx context.Context,
-		req interface{},
+		req any,
 		info *grpc.UnaryServerInfo,
 		handler grpc.UnaryHandler,
 	) (any, error) {
@@ -42,7 +42,6 @@ func JWTAuthUnaryInterceptor(jwtManager *auth.JWTManager) grpc.UnaryServerInterc
 		if isPublicMethod(info.FullMethod) {
 			return handler(ctx, req)
 		}
-
 		claims, err := validateJWT(ctx, jwtManager)
 		if err != nil {
 			log.Printf("[JWT Auth] Unauthorized access attempt to %s: %v", info.FullMethod, err)

@@ -17,6 +17,11 @@ var (
 	ErrInvalidClaims = errors.New("invalid token claims")
 )
 
+type Approver interface {
+	ValidateToken(tokenString string) (*Claims, error)
+	ValidMethod(fullMethod string) error
+}
+
 // Claims represents the JWT claims
 type Claims struct {
 	UserID   string   `json:"user_id"`
