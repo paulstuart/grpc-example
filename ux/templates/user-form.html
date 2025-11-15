@@ -1,0 +1,64 @@
+<div class="card" style="margin-top: 2rem;">
+    <h3>Create New User</h3>
+    <div id="create-error"></div>
+    <form hx-post="/users"
+          hx-target="#users-container"
+          hx-target-error="#create-error"
+          hx-on::after-request="this.reset()">
+
+        <div class="form-group">
+            <label for="id">ID:</label>
+            <input type="number" id="id" name="id" required>
+        </div>
+
+        <div class="form-group">
+            <label for="username">Username:</label>
+            <input type="text" id="username" name="username" required>
+        </div>
+
+        <div class="form-group">
+            <label for="email">Email:</label>
+            <input type="email" id="email" name="email" required>
+        </div>
+
+        <div class="form-group">
+            <label for="phone">Phone:</label>
+            <input type="tel" id="phone" name="phone">
+        </div>
+
+        <div class="form-group">
+            <label for="role">Role:</label>
+            <select id="role" name="role" required>
+                <option value="0">Guest</option>
+                <option value="1" selected>Member</option>
+                <option value="2">Admin</option>
+                <option value="3">Moderator</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="status">Status:</label>
+            <select id="status" name="status" required>
+                <option value="0">Inactive</option>
+                <option value="1" selected>Active</option>
+                <option value="2">Suspended</option>
+                <option value="3">Deleted</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="displayName">Display Name:</label>
+            <input type="text" id="displayName" name="displayName">
+        </div>
+
+        <div class="form-group">
+            <label for="bio">Bio:</label>
+            <textarea id="bio" name="bio"></textarea>
+        </div>
+
+        <div style="margin-top: 1rem;">
+            <button type="submit" class="btn btn-success">Create User</button>
+            <button type="button" class="btn" onclick="this.closest('#user-modal').innerHTML=''">Cancel</button>
+        </div>
+    </form>
+</div>

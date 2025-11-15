@@ -1,0 +1,70 @@
+<div class="card" style="margin-top: 2rem;">
+    <h3>Edit User #{{ .User.ID }}</h3>
+    <div id="edit-error"></div>
+    <form hx-put="/users/{{ .User.ID }}"
+          hx-target="#users-container"
+          hx-target-error="#edit-error">
+
+        <div class="form-group">
+            <label for="username">Username:</label>
+            <input type="text" id="username" name="username" value="{{ .User.Username }}" required>
+        </div>
+
+        <div class="form-group">
+            <label for="email">Email:</label>
+            <input type="email" id="email" name="email" value="{{ .User.Email }}" required>
+        </div>
+
+        <div class="form-group">
+            <label for="phone">Phone:</label>
+            <input type="tel" id="phone" name="phone" value="{{ .User.Phone }}">
+        </div>
+
+        <div class="form-group">
+            <label for="role">Role:</label>
+            <select id="role" name="role" required>
+                <option value="0" {{ if eq .User.RoleInt 0 }}selected{{ end }}>Guest</option>
+                <option value="1" {{ if eq .User.RoleInt 1 }}selected{{ end }}>Member</option>
+                <option value="2" {{ if eq .User.RoleInt 2 }}selected{{ end }}>Admin</option>
+                <option value="3" {{ if eq .User.RoleInt 3 }}selected{{ end }}>Moderator</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="status">Status:</label>
+            <select id="status" name="status" required>
+                <option value="0" {{ if eq .User.StatusInt 0 }}selected{{ end }}>Inactive</option>
+                <option value="1" {{ if eq .User.StatusInt 1 }}selected{{ end }}>Active</option>
+                <option value="2" {{ if eq .User.StatusInt 2 }}selected{{ end }}>Suspended</option>
+                <option value="3" {{ if eq .User.StatusInt 3 }}selected{{ end }}>Deleted</option>
+            </select>
+        </div>
+
+        {{ if .User.Profile }}
+        <div class="form-group">
+            <label for="displayName">Display Name:</label>
+            <input type="text" id="displayName" name="displayName" value="{{ .User.Profile.DisplayName }}">
+        </div>
+
+        <div class="form-group">
+            <label for="bio">Bio:</label>
+            <textarea id="bio" name="bio">{{ .User.Profile.Bio }}</textarea>
+        </div>
+        {{ else }}
+        <div class="form-group">
+            <label for="displayName">Display Name:</label>
+            <input type="text" id="displayName" name="displayName">
+        </div>
+
+        <div class="form-group">
+            <label for="bio">Bio:</label>
+            <textarea id="bio" name="bio"></textarea>
+        </div>
+        {{ end }}
+
+        <div style="margin-top: 1rem;">
+            <button type="submit" class="btn btn-success">Update User</button>
+            <button type="button" class="btn" onclick="this.closest('#user-modal').innerHTML=''">Cancel</button>
+        </div>
+    </form>
+</div>

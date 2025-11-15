@@ -1,0 +1,38 @@
+{{ define "content" }}
+<div class="card">
+    <h2>Users</h2>
+
+    <div class="actions">
+        <button class="btn btn-success"
+                hx-get="/users/new"
+                hx-target="#user-modal"
+                hx-swap="innerHTML">Create New User</button>
+
+        <div class="filter-group">
+            <label for="role-filter">Filter by Role:</label>
+            <select id="role-filter"
+                    hx-get="/users/filter"
+                    hx-trigger="change"
+                    hx-target="#users-container"
+                    hx-include="[name='role']"
+                    name="role">
+                <option value="all">All</option>
+                <option value="0">Guest</option>
+                <option value="1">Member</option>
+                <option value="2">Admin</option>
+                <option value="3">Moderator</option>
+            </select>
+        </div>
+
+        <button class="btn"
+                hx-get="/users/list"
+                hx-target="#users-container">Refresh</button>
+    </div>
+
+    <div id="users-container" hx-get="/users/list" hx-trigger="load">
+        Loading...
+    </div>
+</div>
+
+<div id="user-modal"></div>
+{{ end }}

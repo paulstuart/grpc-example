@@ -1,0 +1,45 @@
+{{ define "content" }}
+<div class="card">
+    <h2>User Details</h2>
+
+    <div style="margin-top: 1rem;">
+        <p><strong>ID:</strong> {{ .User.ID }}</p>
+        <p><strong>Username:</strong> {{ .User.Username }}</p>
+        <p><strong>Email:</strong> {{ .User.Email }}</p>
+        <p><strong>Phone:</strong> {{ .User.Phone }}</p>
+        <p><strong>Role:</strong> <span class="badge badge-{{ .User.Role | lower }}">{{ .User.Role }}</span></p>
+        <p><strong>Status:</strong> <span class="badge badge-{{ .User.Status | lower }}">{{ .User.Status }}</span></p>
+
+        {{ if .User.Profile }}
+        <h3 style="margin-top: 1.5rem;">Profile</h3>
+        <p><strong>Display Name:</strong> {{ .User.Profile.DisplayName }}</p>
+        <p><strong>Bio:</strong> {{ .User.Profile.Bio }}</p>
+        {{ if .User.Profile.AvatarURL }}
+        <p><strong>Avatar:</strong> <img src="{{ .User.Profile.AvatarURL }}" alt="Avatar" style="max-width: 100px;"></p>
+        {{ end }}
+        {{ end }}
+
+        {{ if .User.Tags }}
+        <h3 style="margin-top: 1.5rem;">Tags</h3>
+        <p>{{ range .User.Tags }}<span class="badge badge-member">{{ . }}</span> {{ end }}</p>
+        {{ end }}
+
+        {{ if .User.Addresses }}
+        <h3 style="margin-top: 1.5rem;">Addresses</h3>
+        {{ range .User.Addresses }}
+        <div style="margin-bottom: 1rem; padding: 1rem; background: #f8f9fa; border-radius: 4px;">
+            <p><strong>Street:</strong> {{ .Street }}</p>
+            <p><strong>City:</strong> {{ .City }}, {{ .State }} {{ .PostalCode }}</p>
+            <p><strong>Country:</strong> {{ .Country }}</p>
+            {{ if .IsPrimary }}<span class="badge badge-active">Primary</span>{{ end }}
+        </div>
+        {{ end }}
+        {{ end }}
+    </div>
+
+    <div style="margin-top: 2rem;">
+        <a href="/users" class="btn">Back to Users</a>
+        <a href="/users/{{ .User.ID }}/edit" class="btn">Edit</a>
+    </div>
+</div>
+{{ end }}
