@@ -9,9 +9,7 @@ datasources:
     editable: true
     jsonData:
       httpMethod: GET
-      tracesToLogs:
-        datasourceUid: 'loki'
-      serviceMap:
-        datasourceUid: 'prometheus'
+      # Disable gRPC, use HTTP API only
+      enableServiceGraph: false
       nodeGraph:
         enabled: true

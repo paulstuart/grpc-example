@@ -49,7 +49,7 @@ var (
 	pprofAddr     = flag.String("pprof", "", "enable pprof HTTP server on this address (e.g., localhost:6060)")
 
 	// OpenTelemetry flags
-	otelEnabled  = flag.Bool("otel-enabled", DefaultEnv("OTEL_ENABLED", true), "enable OpenTelemetry")
+	otelEnabled  = flag.Bool("otel-enabled", DefaultEnv("OTEL_ENABLED", false), "enable OpenTelemetry")
 	otelEndpoint = flag.String("otel-endpoint", DefaultEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317"), "OpenTelemetry collector endpoint")
 	serviceName  = flag.String("service-name", DefaultEnv("SERVICE_NAME", "grpc-example"), "service name for OpenTelemetry")
 	environment  = flag.String("environment", DefaultEnv("ENVIRONMENT", "development"), "deployment environment")
@@ -369,7 +369,15 @@ func main() {
 	}()
 
 	// Setup gRPC-Gateway
-	dialAddr := fmt.Sprintf("%s:%d", *hostname, *gRPCPort)
+	// Gateway connects to gRPC server on localhost (same container)
+	// Use localhost instead of hostname because:
+	// 1. They're in the same process/container
+	// 2. Certificate has localhost in SANs but not 0.0.0.0
+	grpcDialHost := "localhost"
+	if *hostname != "" && *hostname != "0.0.0.0" {
+		grpcDialHost = *hostname
+	}
+	dialAddr := fmt.Sprintf("%s:%d", grpcDialHost, *gRPCPort)
 
 	var dialOpts []grpc.DialOption
 	// Use the cert pool from loaded credentials (or embedded if fallback occurred)
@@ -462,4 +470,30 @@ func main() {
 	grpcServer.GracefulStop()
 
 	log.Println("Server shutdown complete")
+}
+
+// AdvisedConfig returns a TLS configuration following Mozilla's guidelines
+// using site: https://ssl-config.mozilla.org/
+// and per https://ssl-config.mozilla.org/#server=go&version=1.23.3&config=intermediate&guideline=5.7
+// TODO: use this in our server TLS config
+func AdvisedConfig(allowInsecure bool) *tls.Config {
+	cfg := &tls.Config{
+		MinVersion: tls.VersionTLS12,
+		CurvePreferences: []tls.CurveID{
+			tls.X25519, // Go 1.8+
+			tls.CurveP256,
+			tls.CurveP384,
+			//tls.x25519Kyber768Draft00, // Go 1.23+
+		},
+		CipherSuites: []uint16{
+			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
+			tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
+		},
+		InsecureSkipVerify: allowInsecure,
+	}
+	return cfg
 }

@@ -134,11 +134,9 @@ message User {
     google.protobuf.Timestamp create_date = 3;
     string username = 4;
 
-    // Oneof: demonstrate exclusive field selection
-    oneof contact_info {
-        string email = 5;
-        string phone = 6;
-    }
+    // Contact information (both optional, real-world users typically have both)
+    string email = 5;
+    string phone = 6;
 
     // Nested message
     Profile profile = 7;

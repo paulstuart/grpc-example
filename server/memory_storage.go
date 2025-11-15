@@ -180,14 +180,7 @@ func cloneUser(user *pb.User) *pb.User {
 		Addresses:  cloneAddresses(user.Addresses),
 	}
 
-	// Clone the oneof contact_info
-	switch v := user.ContactInfo.(type) {
-	case *pb.User_Email:
-		clone.ContactInfo = &pb.User_Email{Email: v.Email}
-	case *pb.User_Phone:
-		clone.ContactInfo = &pb.User_Phone{Phone: v.Phone}
-	}
-
+	// No oneof anymore - email and phone are separate fields (already copied above)
 	return clone
 }
 

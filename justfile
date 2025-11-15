@@ -176,6 +176,7 @@ SERVER_KEY := CERTS_DIR + "/server.key"
 
 # Generate self-signed TLS certificates with proper SANs (Subject Alternative Names)
 # This is required for modern TLS implementations that reject certificates with only CN
+# This version is for local development only (basic SANs)
 gen-certs:
     @echo "Generating TLS certificates with SANs..."
     @mkdir -p {{CERTS_DIR}}
@@ -188,6 +189,11 @@ gen-certs:
     @echo "  Certificate: {{SERVER_CERT}}"
     @echo "  Private Key: {{SERVER_KEY}}"
     @echo "  SANs: localhost, *.localhost, {{SERVER_NAME}}, 127.0.0.1, 0.0.0.0, 192.168.1.6"
+
+# Generate TLS certificates for Docker environments (includes Docker service names and IPs)
+# Use this for Docker Compose deployments to support inter-container TLS verification
+gen-docker-certs:
+    @./scripts/gen-docker-certs.sh
 
 # Generate Let's Encrypt certificates (for production use)
 certs:
@@ -206,12 +212,26 @@ signtls: serverkey
         -addext "subjectAltName=DNS:localhost,DNS:*.localhost,DNS:{{SERVER_NAME}},IP:127.0.0.1,IP:0.0.0.0,IP:192.168.1.6"
 
 sample-server:
-    ./grpc-example -host {{SERVER_NAME}} -enable-auth |& tee run5.log
+    ./grpc-example -host {{SERVER_NAME}} -enable-auth | tee run5.log
 
 sample-client:
-   ./client -server {{SERVER_NAME}}:10000 -token $(cat testtoken) |& tee client01.log
+   ./client -server {{SERVER_NAME}}:10000 -token $(cat testtoken) | tee client01.log
 
 # Docker / Docker Compose Commands
+
+# Setup DNS resolution for Docker services on host (requires sudo)
+dns-setup:
+    @echo "Setting up DNS resolution for Docker services..."
+    sudo ./scripts/setup-dns.sh add
+
+# Remove DNS resolution for Docker services from host (requires sudo)
+dns-remove:
+    @echo "Removing DNS resolution for Docker services..."
+    sudo ./scripts/setup-dns.sh remove
+
+# Check DNS resolution status
+dns-status:
+    @sudo ./scripts/setup-dns.sh status
 
 # Build Docker image for the API server
 docker-build:
@@ -224,10 +244,17 @@ docker-up:
     @echo "Starting Docker Compose stack..."
     docker compose up -d
     @echo "Stack is running!"
-    @echo "  - Grafana:      http://localhost:3000"
-    @echo "  - gRPC API:     https://localhost:10000"
-    @echo "  - HTTP Gateway: https://localhost:11000"
-    @echo "  - PostgreSQL:   localhost:5432"
+    @echo ""
+    @echo "🎛️  Control Plane Dashboard:  http://localhost:8080"
+    @echo ""
+    @echo "Services:"
+    @echo "  - Grafana:         http://localhost:3000"
+    @echo "  - gRPC API:        https://localhost:10000"
+    @echo "  - HTTP Gateway:    https://localhost:11000"
+    @echo "  - OpenAPI Docs:    https://localhost:11000/openapi-ui/"
+    @echo "  - PostgreSQL:      localhost:5432"
+    @echo "  - Tempo:           http://localhost:3200"
+    @echo "  - OTEL Collector:  http://localhost:8888/metrics"
 
 # Start the stack with build
 docker-up-build:
@@ -237,22 +264,21 @@ docker-up-build:
 
 # Scale API servers
 # Example: just docker-scale 3
+# NOTE: Before scaling, comment out 'ports' section in docker-compose.yml and add load balancer
 docker-scale count="2":
-    @echo "Scaling API servers to {{count}} instances..."
-    docker compose up -d --scale api={{count}}
-    @echo "API servers scaled to {{count}} instances!"
+    @echo "⚠️  WARNING: Scaling requires load balancer setup"
+    @echo "Before scaling:"
+    @echo "  1. Comment out 'ports' section in api service"
+    @echo "  2. Add nginx/traefik load balancer"
+    @echo "  3. Then run: docker compose up -d --scale api={{count}}"
+    @echo ""
+    @echo "For development, use single instance with fixed ports (current setup)"
 
 # Stop the Docker Compose stack
 docker-down:
     @echo "Stopping Docker Compose stack..."
     docker compose down
     @echo "Stack stopped!"
-
-# Stop and remove volumes (destructive - deletes database data)
-docker-down-volumes:
-    @echo "Stopping Docker Compose stack and removing volumes..."
-    docker compose down -v
-    @echo "Stack stopped and volumes removed!"
 
 # View logs from all services
 docker-logs:
@@ -302,6 +328,21 @@ docker-rsyslog-service-logs service:
 # List all log files in rsyslog
 docker-rsyslog-list:
     docker compose exec rsyslog find /var/log/remote -type f -name "*.log" | sort
+
+# Copy all rsyslog logs to host directory
+docker-rsyslog-export dir="./rsyslog-export":
+    @echo "Exporting rsyslog logs to {{dir}}..."
+    @mkdir -p {{dir}}
+    docker cp grpc-rsyslog:/var/log/remote/. {{dir}}/
+    @echo "✓ Logs exported to {{dir}}"
+    @ls -lh {{dir}}
+
+# Browse rsyslog volume with an interactive shell
+docker-rsyslog-browse:
+    @echo "Opening shell in rsyslog volume..."
+    @echo "Logs are in /logs directory"
+    @echo "Use 'exit' to return"
+    docker run --rm -it -v grpc-example_rsyslog_data:/logs:ro alpine sh -c "cd /logs && sh"
 
 # Check status of all services
 docker-ps:
@@ -393,3 +434,62 @@ docker-diagnose: docker-check docker-check-tempo docker-check-api-otel docker-ch
     @echo "  1. just docker-generate-traces"
     @echo "  2. just docker-check-tempo"
     @echo "  3. just docker-open-grafana"
+
+# Populate database with test users
+docker-populate-users:
+    @echo "Populating database with test users..."
+    @./scripts/populate-users.sh https://localhost:11004 testtoken
+
+# Clear all users from database
+docker-clear-users:
+    @echo "Clearing all users from database..."
+    @echo "This will delete all users. Press Ctrl+C to cancel, or Enter to continue..."
+    @read confirmation
+    @for id in {1..20}; do \
+        curl -k -s -X DELETE https://localhost:11004/v1/users/$$id \
+            -H "Authorization: Bearer $$(cat testtoken)" > /dev/null 2>&1; \
+    done
+    @echo "✓ Users cleared"
+
+# Control Plane / Dashboard Commands
+
+# Open the control plane dashboard in browser
+dashboard:
+    @echo "Opening Control Plane Dashboard..."
+    @open http://localhost:8080 || xdg-open http://localhost:8080 || echo "Open http://localhost:8080 in your browser"
+
+# Access interactive shell in control-plane container
+shell:
+    @echo "Entering control-plane shell..."
+    @echo "Workspace mounted at: /workspace"
+    @echo "Use 'exit' to return to host"
+    @docker compose exec control-plane bash
+
+# Run tests from within the control-plane container
+docker-test-inside:
+    @echo "Running tests from within control-plane container..."
+    @docker compose exec control-plane bash -c "cd /workspace && go test ./..."
+
+# Run justfile commands from within the control-plane container
+# Example: just docker-just build
+docker-just cmd:
+    @docker compose exec control-plane bash -c "cd /workspace && just {{cmd}}"
+
+# Test connectivity from control-plane to all services
+docker-test-from-control:
+    @echo "Testing connectivity from control-plane to all services..."
+    @docker compose exec control-plane bash -c '\
+        echo "=== DNS Resolution ===" && \
+        dig +short api && \
+        dig +short postgres && \
+        dig +short grafana && \
+        echo "" && \
+        echo "=== Service Connectivity ===" && \
+        curl --cacert /workspace/certs/server.crt -s https://api:11000/health && echo " ✓ API" || echo " ✗ API" && \
+        pg_isready -h postgres -p 5432 && \
+        curl -s http://grafana:3000 > /dev/null && echo "✓ Grafana reachable" || echo "✗ Grafana unreachable" && \
+        curl -s http://tempo:3200/ready > /dev/null && echo "✓ Tempo reachable" || echo "✗ Tempo unreachable"'
+
+# View control-plane logs
+docker-logs-control:
+    docker compose logs -f control-plane

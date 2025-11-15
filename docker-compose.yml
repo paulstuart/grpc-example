@@ -1,5 +1,10 @@
+# Environment variables with defaults
+# Override by creating .env file or setting in shell
+# RSYSLOG_IP: Static IP for rsyslog (must match network configuration below)
+
 services:
   # Centralized Logging (Rsyslog)
+  # Static IP is required because Docker's logging driver initializes before DNS
   rsyslog:
     build:
       context: .
@@ -12,6 +17,7 @@ services:
       - rsyslog_data:/var/log/remote
     networks:
       grpc-network:
+        # Static IP required for syslog logging driver (DNS not available during driver init)
         ipv4_address: 172.21.0.10
     healthcheck:
       test: ["CMD", "pgrep", "rsyslogd"]
@@ -41,6 +47,7 @@ services:
     logging:
       driver: syslog
       options:
+        # Must use IP instead of hostname - Docker logging driver initializes before DNS
         syslog-address: "udp://172.21.0.10:514"
         tag: "postgres"
         syslog-facility: "daemon"
@@ -88,7 +95,7 @@ services:
       - ./tempo-config.yaml:/etc/tempo.yaml
       - tempo_data:/var/tempo
     ports:
-      - "3200:3200"   # Tempo HTTP
+      - "3200:3200"   # Tempo HTTP (exposed to host)
       - "4317"        # OTLP gRPC (internal)
     networks:
       - grpc-network
@@ -135,7 +142,41 @@ services:
         syslog-format: "rfc5424"
     restart: unless-stopped
 
+  # Control Plane / Dashboard (development & troubleshooting)
+  # Full Linux environment with Go compiler, network tools, and web dashboard
+  # Access shell: docker compose exec control-plane bash
+  control-plane:
+    build:
+      context: .
+      dockerfile: Dockerfile.control-plane
+    container_name: grpc-control-plane
+    ports:
+      - "8080:8080"  # Dashboard web UI
+    volumes:
+      # Mount entire repo for development and testing
+      - .:/workspace
+      # Share certificates
+      - ./certs:/workspace/certs:ro
+    environment:
+      PORT: 8080
+      POSTGRES_URL: postgresql://grpc_user:grpc_password@postgres:5432/grpc_example
+    networks:
+      - grpc-network
+    depends_on:
+      rsyslog:
+        condition: service_healthy
+    logging:
+      driver: syslog
+      options:
+        syslog-address: "udp://172.21.0.10:514"
+        tag: "control-plane"
+        syslog-facility: "daemon"
+        syslog-format: "rfc5424"
+    restart: unless-stopped
+
   # gRPC API Server (scalable)
+  # Single instance: uses ports 10000, 11000
+  # Scaled instances: omit ports section and use load balancer
   api:
     build:
       context: .
@@ -150,8 +191,9 @@ services:
       ENVIRONMENT: docker
       DATABASE_URL: postgresql://grpc_user:grpc_password@postgres:5432/grpc_example?sslmode=disable
     ports:
-      - "10000-10010:10000"  # gRPC ports (allows scaling)
-      - "11000-11010:11000"  # HTTP Gateway ports (allows scaling)
+      # Fixed ports for single instance (comment out when scaling)
+      - "10000:10000"  # gRPC
+      - "11000:11000"  # HTTP Gateway
     depends_on:
       postgres:
         condition: service_healthy
@@ -169,7 +211,10 @@ services:
         syslog-facility: "daemon"
         syslog-format: "rfc5424"
     restart: unless-stopped
-    # Scale this service using: docker compose up --scale api=3
+    # To scale:
+    # 1. Comment out the 'ports' section above
+    # 2. Add a load balancer (nginx/traefik)
+    # 3. Run: docker compose up --scale api=3
 
 volumes:
   postgres_data:

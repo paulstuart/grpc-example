@@ -315,3 +315,34 @@ This project demonstrates modern gRPC development practices with comprehensive c
 - Modern tooling (Buf, Just)
 - Production-ready patterns (interceptors, storage abstraction, graceful shutdown)
 - Migrated from deprecated gogo/protobuf to standard google.golang.org/protobuf
+
+## Documentation
+
+### Getting Started
+- **[Quick Start Guide](docs/QUICKSTART.md)** - Step-by-step guide to get the full Docker stack running with OpenTelemetry, Grafana, and PostgreSQL
+
+### Docker & Deployment
+- **[Control Plane Container](docs/CONTROL_PLANE.md)** - Single pane of glass dashboard, development environment, and troubleshooting tools
+- **[Docker Commands Reference](docs/DOCKER_COMMANDS.md)** - Complete reference for all Docker Compose commands, diagnostic tools, and common workflows
+- **[Docker Service Names Guide](docs/DOCKER_SERVICE_NAMES.md)** - Understanding service names vs container names in Docker Compose
+- **[Docker Networking Architecture](docs/DOCKER_NETWORKING.md)** - Detailed explanation of network configuration, static IPs, DNS resolution, and service discovery
+- **[DNS Setup for Host Access](docs/DNS_SETUP.md)** - Configure your host machine to access Docker services using service names instead of localhost
+- **[TLS in Docker Environments](docs/TLS_DOCKER.md)** - How to configure self-signed certificates with SANs for cross-container TLS validation
+
+### Observability
+- **[OpenTelemetry Integration](docs/OTEL_README.md)** - Comprehensive guide to distributed tracing, metrics collection, and the observability stack
+- **[OpenTelemetry Debugging](docs/DEBUG_OTEL.md)** - Troubleshooting guide for traces, metrics, and the Otel collector
+- **[Centralized Logging with Rsyslog](docs/RSYSLOG_README.md)** - Complete guide to the rsyslog setup for aggregating logs from all services
+- **[Rsyslog Quick Reference](docs/RSYSLOG_QUICKSTART.md)** - Quick commands for viewing and searching centralized logs
+
+### Security & Access Control
+- **[RBAC Implementation](docs/RBAC.md)** - Role-Based Access Control implementation with JWT authentication and authorization
+
+### Development
+- **[Project Requirements](docs/CLAUDE.md)** - Original project goals and comprehensive feature requirements
+
+### Component Documentation
+- **[Authentication Module](auth/README.md)** - JWT token generation, validation, and authentication interceptor details
+- **[Client Examples](cmd/client/README.md)** - Command-line client demonstrating all gRPC patterns
+- **[TLS Certificates](insecure/README.md)** - Development certificates and security notes
+- **[OpenAPI Integration](third_party/OpenAPI/README.md)** - REST API documentation via gRPC-Gateway

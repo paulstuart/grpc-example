@@ -297,13 +297,9 @@ type User struct {
 	Role       Role                   `protobuf:"varint,2,opt,name=role,proto3,enum=proto.Role" json:"role,omitempty"`
 	CreateDate *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=create_date,json=createDate,proto3" json:"create_date,omitempty"`
 	Username   string                 `protobuf:"bytes,4,opt,name=username,proto3" json:"username,omitempty"`
-	// Oneof: demonstrate exclusive field selection
-	//
-	// Types that are valid to be assigned to ContactInfo:
-	//
-	//	*User_Email
-	//	*User_Phone
-	ContactInfo isUser_ContactInfo `protobuf_oneof:"contact_info"`
+	// Contact information (both optional, real-world users typically have both)
+	Email string `protobuf:"bytes,5,opt,name=email,proto3" json:"email,omitempty"`
+	Phone string `protobuf:"bytes,6,opt,name=phone,proto3" json:"phone,omitempty"`
 	// Nested message
 	Profile *Profile `protobuf:"bytes,7,opt,name=profile,proto3" json:"profile,omitempty"`
 	// Repeated field
@@ -376,27 +372,16 @@ func (x *User) GetUsername() string {
 	return ""
 }
 
-func (x *User) GetContactInfo() isUser_ContactInfo {
-	if x != nil {
-		return x.ContactInfo
-	}
-	return nil
-}
-
 func (x *User) GetEmail() string {
 	if x != nil {
-		if x, ok := x.ContactInfo.(*User_Email); ok {
-			return x.Email
-		}
+		return x.Email
 	}
 	return ""
 }
 
 func (x *User) GetPhone() string {
 	if x != nil {
-		if x, ok := x.ContactInfo.(*User_Phone); ok {
-			return x.Phone
-		}
+		return x.Phone
 	}
 	return ""
 }
@@ -442,22 +427,6 @@ func (x *User) GetAddresses() []*Address {
 	}
 	return nil
 }
-
-type isUser_ContactInfo interface {
-	isUser_ContactInfo()
-}
-
-type User_Email struct {
-	Email string `protobuf:"bytes,5,opt,name=email,proto3,oneof"`
-}
-
-type User_Phone struct {
-	Phone string `protobuf:"bytes,6,opt,name=phone,proto3,oneof"`
-}
-
-func (*User_Email) isUser_ContactInfo() {}
-
-func (*User_Phone) isUser_ContactInfo() {}
 
 // Nested message example
 type Profile struct {
@@ -1183,15 +1152,15 @@ var File_example_proto protoreflect.FileDescriptor
 
 const file_example_proto_rawDesc = "" +
 	"\n" +
-	"\rexample.proto\x12\x05proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1egoogle/protobuf/duration.proto\x1a google/protobuf/field_mask.proto\x1a\x1cgoogle/api/annotations.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\"\x96\x04\n" +
+	"\rexample.proto\x12\x05proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1egoogle/protobuf/duration.proto\x1a google/protobuf/field_mask.proto\x1a\x1cgoogle/api/annotations.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\"\x82\x04\n" +
 	"\x04User\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\rR\x02id\x12\x1f\n" +
 	"\x04role\x18\x02 \x01(\x0e2\v.proto.RoleR\x04role\x12;\n" +
 	"\vcreate_date\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"createDate\x12\x1a\n" +
-	"\busername\x18\x04 \x01(\tR\busername\x12\x16\n" +
-	"\x05email\x18\x05 \x01(\tH\x00R\x05email\x12\x16\n" +
-	"\x05phone\x18\x06 \x01(\tH\x00R\x05phone\x12(\n" +
+	"\busername\x18\x04 \x01(\tR\busername\x12\x14\n" +
+	"\x05email\x18\x05 \x01(\tR\x05email\x12\x14\n" +
+	"\x05phone\x18\x06 \x01(\tR\x05phone\x12(\n" +
 	"\aprofile\x18\a \x01(\v2\x0e.proto.ProfileR\aprofile\x12\x12\n" +
 	"\x04tags\x18\b \x03(\tR\x04tags\x125\n" +
 	"\bmetadata\x18\t \x03(\v2\x19.proto.User.MetadataEntryR\bmetadata\x12)\n" +
@@ -1202,8 +1171,7 @@ const file_example_proto_rawDesc = "" +
 	"\taddresses\x18\f \x03(\v2\x0e.proto.AddressR\taddresses\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\x0e\n" +
-	"\fcontact_info\"\xa0\x02\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa0\x02\n" +
 	"\aProfile\x12!\n" +
 	"\fdisplay_name\x18\x01 \x01(\tR\vdisplayName\x12\x10\n" +
 	"\x03bio\x18\x02 \x01(\tR\x03bio\x12\x1d\n" +
@@ -1408,10 +1376,6 @@ func init() { file_example_proto_init() }
 func file_example_proto_init() {
 	if File_example_proto != nil {
 		return
-	}
-	file_example_proto_msgTypes[0].OneofWrappers = []any{
-		(*User_Email)(nil),
-		(*User_Phone)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{

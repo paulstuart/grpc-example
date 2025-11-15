@@ -247,11 +247,12 @@ func (s *PostgresStorage) GetUser(ctx context.Context, id uint32) (*pb.User, err
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 
-	// Populate contact_info oneof
-	if email != nil && *email != "" {
-		user.ContactInfo = &pb.User_Email{Email: *email}
-	} else if phone != nil && *phone != "" {
-		user.ContactInfo = &pb.User_Phone{Phone: *phone}
+	// Populate contact info (no longer oneof)
+	if email != nil {
+		user.Email = *email
+	}
+	if phone != nil {
+		user.Phone = *phone
 	}
 
 	// Populate profile
@@ -495,11 +496,12 @@ func (s *PostgresStorage) ListUsers(ctx context.Context, filter *ListFilter) ([]
 			continue
 		}
 
-		// Populate fields (same logic as GetUser)
-		if email != nil && *email != "" {
-			user.ContactInfo = &pb.User_Email{Email: *email}
-		} else if phone != nil && *phone != "" {
-			user.ContactInfo = &pb.User_Phone{Phone: *phone}
+		// Populate contact info (no longer oneof)
+		if email != nil {
+			user.Email = *email
+		}
+		if phone != nil {
+			user.Phone = *phone
 		}
 
 		profile := &pb.Profile{}
@@ -586,11 +588,12 @@ func (s *PostgresStorage) ListUsersByRole(ctx context.Context, role pb.Role) ([]
 			continue
 		}
 
-		// Populate fields (same as ListUsers)
-		if email != nil && *email != "" {
-			user.ContactInfo = &pb.User_Email{Email: *email}
-		} else if phone != nil && *phone != "" {
-			user.ContactInfo = &pb.User_Phone{Phone: *phone}
+		// Populate contact info (no longer oneof)
+		if email != nil {
+			user.Email = *email
+		}
+		if phone != nil {
+			user.Phone = *phone
 		}
 
 		profile := &pb.Profile{}

@@ -1,0 +1,326 @@
+[
+  {
+    "id": 1,
+    "username": "alice_admin",
+    "role": "ADMIN",
+    "email": "alice@example.com",
+    "phone": "+1-555-0101",
+    "profile": {
+      "firstName": "Alice",
+      "lastName": "Anderson",
+      "bio": "System administrator with 10 years of experience",
+      "addresses": [
+        {
+          "street": "123 Admin Ave",
+          "city": "San Francisco",
+          "state": "CA",
+          "zipCode": "94102",
+          "country": "USA"
+        }
+      ],
+      "preferences": {
+        "theme": "dark",
+        "language": "en",
+        "notifications": "email"
+      }
+    },
+    "tags": ["admin", "senior", "operations"],
+    "metadata": {
+      "department": "IT",
+      "manager": "none",
+      "hire_date": "2014-03-15"
+    }
+  },
+  {
+    "id": 2,
+    "username": "bob_user",
+    "role": "USER",
+    "email": "bob@example.com",
+    "phone": "+1-555-0102",
+    "profile": {
+      "firstName": "Bob",
+      "lastName": "Builder",
+      "bio": "Software engineer focused on backend development",
+      "addresses": [
+        {
+          "street": "456 Developer Dr",
+          "city": "Austin",
+          "state": "TX",
+          "zipCode": "78701",
+          "country": "USA"
+        }
+      ],
+      "preferences": {
+        "theme": "light",
+        "language": "en",
+        "notifications": "slack"
+      }
+    },
+    "tags": ["developer", "backend", "golang"],
+    "metadata": {
+      "department": "Engineering",
+      "manager": "alice_admin",
+      "hire_date": "2020-06-01"
+    }
+  },
+  {
+    "id": 3,
+    "username": "charlie_guest",
+    "role": "GUEST",
+    "email": "charlie@consultant.com",
+    "phone": "+1-555-0103",
+    "profile": {
+      "firstName": "Charlie",
+      "lastName": "Chen",
+      "bio": "Consultant and external collaborator",
+      "addresses": [
+        {
+          "street": "789 Guest Ln",
+          "city": "Seattle",
+          "state": "WA",
+          "zipCode": "98101",
+          "country": "USA"
+        }
+      ],
+      "preferences": {
+        "theme": "auto",
+        "language": "en",
+        "notifications": "none"
+      }
+    },
+    "tags": ["consultant", "external", "temporary"],
+    "metadata": {
+      "department": "External",
+      "contract_end": "2025-12-31",
+      "access_level": "limited"
+    }
+  },
+  {
+    "id": 4,
+    "username": "diana_moderator",
+    "role": "MODERATOR",
+    "email": "diana@example.com",
+    "phone": "+1-555-0104",
+    "profile": {
+      "firstName": "Diana",
+      "lastName": "Davis",
+      "bio": "Community manager and content moderator",
+      "addresses": [
+        {
+          "street": "321 Moderator Blvd",
+          "city": "New York",
+          "state": "NY",
+          "zipCode": "10001",
+          "country": "USA"
+        }
+      ],
+      "preferences": {
+        "theme": "dark",
+        "language": "en",
+        "notifications": "all"
+      }
+    },
+    "tags": ["moderator", "community", "support"],
+    "metadata": {
+      "department": "Community",
+      "manager": "alice_admin",
+      "hire_date": "2019-09-01"
+    }
+  },
+  {
+    "id": 5,
+    "username": "eve_user",
+    "role": "USER",
+    "email": "eve@example.com",
+    "phone": "+1-555-0105",
+    "profile": {
+      "firstName": "Eve",
+      "lastName": "Evans",
+      "bio": "Frontend developer specializing in React",
+      "addresses": [
+        {
+          "street": "654 Frontend St",
+          "city": "Portland",
+          "state": "OR",
+          "zipCode": "97201",
+          "country": "USA"
+        }
+      ],
+      "preferences": {
+        "theme": "light",
+        "language": "en",
+        "notifications": "email"
+      }
+    },
+    "tags": ["developer", "frontend", "react", "typescript"],
+    "metadata": {
+      "department": "Engineering",
+      "manager": "alice_admin",
+      "hire_date": "2021-02-15"
+    }
+  },
+  {
+    "id": 6,
+    "username": "frank_admin",
+    "role": "ADMIN",
+    "email": "frank@example.com",
+    "phone": "+1-555-0106",
+    "profile": {
+      "firstName": "Frank",
+      "lastName": "Foster",
+      "bio": "Security administrator and DevOps engineer",
+      "addresses": [
+        {
+          "street": "987 Security Way",
+          "city": "Denver",
+          "state": "CO",
+          "zipCode": "80202",
+          "country": "USA"
+        }
+      ],
+      "preferences": {
+        "theme": "dark",
+        "language": "en",
+        "notifications": "sms"
+      }
+    },
+    "tags": ["admin", "security", "devops", "kubernetes"],
+    "metadata": {
+      "department": "IT",
+      "manager": "alice_admin",
+      "hire_date": "2017-11-20",
+      "clearance": "high"
+    }
+  },
+  {
+    "id": 7,
+    "username": "grace_user",
+    "role": "USER",
+    "email": "grace@example.com",
+    "phone": "+1-555-0107",
+    "profile": {
+      "firstName": "Grace",
+      "lastName": "Green",
+      "bio": "Data scientist working on ML models",
+      "addresses": [
+        {
+          "street": "147 Data Dr",
+          "city": "Boston",
+          "state": "MA",
+          "zipCode": "02101",
+          "country": "USA"
+        }
+      ],
+      "preferences": {
+        "theme": "auto",
+        "language": "en",
+        "notifications": "email"
+      }
+    },
+    "tags": ["data-science", "ml", "python", "research"],
+    "metadata": {
+      "department": "Research",
+      "manager": "alice_admin",
+      "hire_date": "2022-01-10",
+      "specialty": "NLP"
+    }
+  },
+  {
+    "id": 8,
+    "username": "henry_moderator",
+    "role": "MODERATOR",
+    "email": "henry@example.com",
+    "phone": "+1-555-0108",
+    "profile": {
+      "firstName": "Henry",
+      "lastName": "Harris",
+      "bio": "Senior moderator and team lead",
+      "addresses": [
+        {
+          "street": "258 Lead Ln",
+          "city": "Chicago",
+          "state": "IL",
+          "zipCode": "60601",
+          "country": "USA"
+        }
+      ],
+      "preferences": {
+        "theme": "light",
+        "language": "en",
+        "notifications": "all"
+      }
+    },
+    "tags": ["moderator", "lead", "senior", "support"],
+    "metadata": {
+      "department": "Community",
+      "manager": "alice_admin",
+      "hire_date": "2018-05-15",
+      "team_size": "5"
+    }
+  },
+  {
+    "id": 9,
+    "username": "iris_guest",
+    "role": "GUEST",
+    "email": "iris@partner.com",
+    "phone": "+1-555-0109",
+    "profile": {
+      "firstName": "Iris",
+      "lastName": "Irwin",
+      "bio": "Partner organization representative",
+      "addresses": [
+        {
+          "street": "369 Partner Pkwy",
+          "city": "Miami",
+          "state": "FL",
+          "zipCode": "33101",
+          "country": "USA"
+        }
+      ],
+      "preferences": {
+        "theme": "light",
+        "language": "en",
+        "notifications": "email"
+      }
+    },
+    "tags": ["partner", "external", "collaboration"],
+    "metadata": {
+      "department": "External",
+      "organization": "Partner Corp",
+      "contract_end": "2026-06-30"
+    }
+  },
+  {
+    "id": 10,
+    "username": "jack_user",
+    "role": "USER",
+    "email": "jack@example.com",
+    "phone": "+1-555-0110",
+    "profile": {
+      "firstName": "Jack",
+      "lastName": "Jackson",
+      "bio": "Mobile developer working on iOS and Android",
+      "addresses": [
+        {
+          "street": "741 Mobile Mews",
+          "city": "Los Angeles",
+          "state": "CA",
+          "zipCode": "90001",
+          "country": "USA"
+        }
+      ],
+      "preferences": {
+        "theme": "dark",
+        "language": "en",
+        "notifications": "push"
+      }
+    },
+    "tags": ["developer", "mobile", "ios", "android", "swift", "kotlin"],
+    "metadata": {
+      "department": "Engineering",
+      "manager": "alice_admin",
+      "hire_date": "2021-08-01",
+      "platforms": "iOS,Android"
+    }
+  }
+]

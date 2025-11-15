@@ -4,6 +4,7 @@
   - use httptest.Recorder and friends
 * Get profiler support with flame graphs
 * RBAC UX
+* Add OAuth support via Ory Kratos
 * Demo Hashicorp plugin architecture
 * PoC working from swagger docs to generate
 * Otel spans in intercepter

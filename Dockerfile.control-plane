@@ -1,0 +1,65 @@
+# Control Plane / Dashboard Container
+# A full-featured Linux environment for cluster management, troubleshooting, and development
+# Includes: Go compiler, Unix utilities, network tools, and a web dashboard
+
+FROM golang:1.24-bookworm
+
+# Install comprehensive toolset for troubleshooting and development
+RUN apt-get update && apt-get install -y \
+    # Network utilities
+    curl \
+    wget \
+    netcat-traditional \
+    iproute2 \
+    iputils-ping \
+    dnsutils \
+    tcpdump \
+    net-tools \
+    traceroute \
+    # Development tools
+    git \
+    vim \
+    nano \
+    jq \
+    tmux \
+    # Database clients
+    postgresql-client \
+    # TLS/SSL tools
+    openssl \
+    ca-certificates \
+    # Process monitoring
+    htop \
+    procps \
+    # Build tools
+    make \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Just (modern command runner)
+RUN curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
+
+# Install Buf (protobuf tooling)
+RUN go install github.com/bufbuild/buf/cmd/buf@latest && \
+    go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && \
+    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest && \
+    go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway@latest && \
+    go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2@latest
+
+# Set working directory
+WORKDIR /workspace
+
+# Create dashboard web server
+RUN mkdir -p /app
+
+# Copy dashboard server (will be created separately)
+COPY control-plane/dashboard.html /app/dashboard.html
+COPY control-plane/server.go /app/server.go
+
+# Build dashboard server
+RUN cd /app && go mod init dashboard && go build -o dashboard server.go
+
+# Expose dashboard port
+EXPOSE 8080
+
+# Default command: run dashboard server
+# User can override to get a shell: docker compose exec control-plane bash
+CMD ["/app/dashboard"]

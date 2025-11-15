@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>gRPC-Example Control Plane</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #2d3748;
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            color: #718096;
+            font-size: 1.1rem;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .card-icon {
+            font-size: 2rem;
+            margin-right: 0.75rem;
+        }
+
+        .card-title {
+            color: #2d3748;
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .card-description {
+            color: #718096;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+        }
+
+        .links {
+            list-style: none;
+        }
+
+        .links li {
+            margin-bottom: 0.75rem;
+        }
+
+        .link {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.5rem 1rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            transition: opacity 0.2s;
+            width: 100%;
+        }
+
+        .link:hover {
+            opacity: 0.9;
+        }
+
+        .link-external::after {
+            content: " ↗";
+            margin-left: auto;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+        }
+
+        .status-healthy {
+            background-color: #48bb78;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .tools-section {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .tools-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .tool-item {
+            padding: 0.75rem;
+            background: #f7fafc;
+            border-radius: 6px;
+            border-left: 4px solid #667eea;
+        }
+
+        .tool-name {
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 0.25rem;
+        }
+
+        .tool-desc {
+            font-size: 0.85rem;
+            color: #718096;
+        }
+
+        .command-box {
+            background: #2d3748;
+            color: #a0aec0;
+            padding: 1rem;
+            border-radius: 6px;
+            font-family: "Monaco", "Courier New", monospace;
+            font-size: 0.9rem;
+            margin-top: 1rem;
+            overflow-x: auto;
+        }
+
+        .command-box code {
+            color: #68d391;
+        }
+
+        footer {
+            text-align: center;
+            color: white;
+            padding: 2rem 0;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎛️ gRPC-Example Control Plane</h1>
+            <p class="subtitle">Single pane of glass for the distributed system</p>
+        </header>
+
+        <div class="grid">
+            <!-- API Services -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-icon">🚀</span>
+                    <h2 class="card-title">API Services</h2>
+                </div>
+                <p class="card-description">gRPC and HTTP Gateway endpoints</p>
+                <ul class="links">
+                    <li>
+                        <a href="https://localhost:11000/openapi-ui/" target="_blank" class="link link-external">
+                            <span class="status-indicator status-healthy"></span>
+                            OpenAPI Documentation
+                        </a>
+                    </li>
+                    <li>
+                        <a href="https://localhost:11000/v1/users" target="_blank" class="link link-external">
+                            <span class="status-indicator status-healthy"></span>
+                            REST API (Users)
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Observability -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-icon">📊</span>
+                    <h2 class="card-title">Observability</h2>
+                </div>
+                <p class="card-description">Monitoring, tracing, and visualization</p>
+                <ul class="links">
+                    <li>
+                        <a href="http://localhost:3000" target="_blank" class="link link-external">
+                            <span class="status-indicator status-healthy"></span>
+                            Grafana Dashboard
+                        </a>
+                    </li>
+                    <li>
+                        <a href="http://localhost:3000/explore" target="_blank" class="link link-external">
+                            <span class="status-indicator status-healthy"></span>
+                            Tempo (Traces via Grafana)
+                        </a>
+                    </li>
+                    <li>
+                        <a href="http://localhost:8889/metrics" target="_blank" class="link link-external">
+                            <span class="status-indicator status-healthy"></span>
+                            OTEL Collector Metrics
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Infrastructure -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-icon">🗄️</span>
+                    <h2 class="card-title">Infrastructure</h2>
+                </div>
+                <p class="card-description">Databases and supporting services</p>
+                <ul class="links">
+                    <li>
+                        <a href="#postgres" class="link">
+                            <span class="status-indicator status-healthy"></span>
+                            PostgreSQL (port 5432)
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#rsyslog" class="link">
+                            <span class="status-indicator status-healthy"></span>
+                            Rsyslog (port 514)
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Health & Status -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-icon">💚</span>
+                    <h2 class="card-title">Health Checks</h2>
+                </div>
+                <p class="card-description">Service health and status</p>
+                <ul class="links">
+                    <li>
+                        <a href="http://localhost:13133" target="_blank" class="link link-external">
+                            <span class="status-indicator status-healthy"></span>
+                            OTEL Collector Health
+                        </a>
+                    </li>
+                    <li>
+                        <a href="http://localhost:3000/connections/datasources" target="_blank" class="link link-external">
+                            <span class="status-indicator status-healthy"></span>
+                            Grafana Data Sources
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Development Tools -->
+        <div class="tools-section">
+            <h2 style="color: #2d3748; margin-bottom: 1rem;">🛠️ Available Development Tools</h2>
+            <div class="tools-grid">
+                <div class="tool-item">
+                    <div class="tool-name">Go 1.24</div>
+                    <div class="tool-desc">Full Go compiler and tools</div>
+                </div>
+                <div class="tool-item">
+                    <div class="tool-name">Buf</div>
+                    <div class="tool-desc">Modern protobuf tooling</div>
+                </div>
+                <div class="tool-item">
+                    <div class="tool-name">Just</div>
+                    <div class="tool-desc">Command runner</div>
+                </div>
+                <div class="tool-item">
+                    <div class="tool-name">curl/wget</div>
+                    <div class="tool-desc">HTTP clients</div>
+                </div>
+                <div class="tool-item">
+                    <div class="tool-name">psql</div>
+                    <div class="tool-desc">PostgreSQL client</div>
+                </div>
+                <div class="tool-item">
+                    <div class="tool-name">tcpdump</div>
+                    <div class="tool-desc">Network packet analyzer</div>
+                </div>
+                <div class="tool-item">
+                    <div class="tool-name">netcat</div>
+                    <div class="tool-desc">Network utility</div>
+                </div>
+                <div class="tool-item">
+                    <div class="tool-name">dig/nslookup</div>
+                    <div class="tool-desc">DNS tools</div>
+                </div>
+                <div class="tool-item">
+                    <div class="tool-name">openssl</div>
+                    <div class="tool-desc">TLS/SSL toolkit</div>
+                </div>
+                <div class="tool-item">
+                    <div class="tool-name">jq</div>
+                    <div class="tool-desc">JSON processor</div>
+                </div>
+                <div class="tool-item">
+                    <div class="tool-name">vim/nano</div>
+                    <div class="tool-desc">Text editors</div>
+                </div>
+                <div class="tool-item">
+                    <div class="tool-name">git</div>
+                    <div class="tool-desc">Version control</div>
+                </div>
+            </div>
+
+            <h3 style="color: #2d3748; margin-top: 2rem; margin-bottom: 0.5rem;">Quick Commands</h3>
+            <div class="command-box">
+                <div># Access shell in control plane container</div>
+                <div><code>docker compose exec control-plane bash</code></div>
+                <br>
+                <div># Run tests from within cluster</div>
+                <div><code>cd /workspace && go test ./...</code></div>
+                <br>
+                <div># Build and run client against API service</div>
+                <div><code>cd /workspace && just build-client && ./client -server api:10000</code></div>
+                <br>
+                <div># Test PostgreSQL connectivity</div>
+                <div><code>psql postgresql://grpc_user:grpc_password@postgres:5432/grpc_example</code></div>
+                <br>
+                <div># Check DNS resolution</div>
+                <div><code>dig api +short</code></div>
+                <br>
+                <div># Test TLS with cert validation</div>
+                <div><code>curl --cacert /workspace/certs/server.crt https://api:11000/v1/users</code></div>
+                <br>
+                <div># Monitor network traffic</div>
+                <div><code>tcpdump -i any port 10000 -n</code></div>
+            </div>
+        </div>
+
+        <!-- Service Discovery -->
+        <div class="tools-section">
+            <h2 style="color: #2d3748; margin-bottom: 1rem;">🌐 Docker Service Names</h2>
+            <p style="color: #718096; margin-bottom: 1rem;">
+                All services are accessible via DNS within the Docker network:
+            </p>
+            <div class="tools-grid">
+                <div class="tool-item">
+                    <div class="tool-name">api:10000</div>
+                    <div class="tool-desc">gRPC API (TLS)</div>
+                </div>
+                <div class="tool-item">
+                    <div class="tool-name">api:11000</div>
+                    <div class="tool-desc">HTTP Gateway (TLS)</div>
+                </div>
+                <div class="tool-item">
+                    <div class="tool-name">postgres:5432</div>
+                    <div class="tool-desc">PostgreSQL Database</div>
+                </div>
+                <div class="tool-item">
+                    <div class="tool-name">tempo:3200</div>
+                    <div class="tool-desc">Tempo (traces)</div>
+                </div>
+                <div class="tool-item">
+                    <div class="tool-name">grafana:3000</div>
+                    <div class="tool-desc">Grafana UI</div>
+                </div>
+                <div class="tool-item">
+                    <div class="tool-name">otel-collector:4317</div>
+                    <div class="tool-desc">OTLP gRPC</div>
+                </div>
+                <div class="tool-item">
+                    <div class="tool-name">rsyslog:514</div>
+                    <div class="tool-desc">Syslog UDP/TCP</div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>gRPC-Example Control Plane • Access shell: <code>docker compose exec control-plane bash</code></p>
+        </footer>
+    </div>
+
+    <script>
+        // Auto-refresh status indicators (optional enhancement)
+        // Could check health endpoints and update status dynamically
+        console.log('Control Plane Dashboard loaded');
+        console.log('Repository mounted at: /workspace');
+    </script>
+</body>
+</html>

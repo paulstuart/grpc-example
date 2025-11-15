@@ -104,9 +104,9 @@ func (s *Server) UpdateUser(ctx context.Context, req *pb.UpdateUserRequest) (*pb
 			case "username":
 				existingUser.Username = req.User.Username
 			case "email":
-				existingUser.ContactInfo = &pb.User_Email{Email: req.User.GetEmail()}
+				existingUser.Email = req.User.Email
 			case "phone":
-				existingUser.ContactInfo = &pb.User_Phone{Phone: req.User.GetPhone()}
+				existingUser.Phone = req.User.Phone
 			case "profile":
 				existingUser.Profile = req.User.Profile
 			case "tags":
@@ -127,7 +127,8 @@ func (s *Server) UpdateUser(ctx context.Context, req *pb.UpdateUserRequest) (*pb
 		// If no mask provided, update all fields except ID and create_date
 		existingUser.Role = req.User.Role
 		existingUser.Username = req.User.Username
-		existingUser.ContactInfo = req.User.ContactInfo
+		existingUser.Email = req.User.Email
+		existingUser.Phone = req.User.Phone
 		existingUser.Profile = req.User.Profile
 		existingUser.Tags = req.User.Tags
 		existingUser.Metadata = req.User.Metadata

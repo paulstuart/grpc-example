@@ -45,8 +45,10 @@ ENV GRPC_PORT=10000 \
     ENVIRONMENT=production
 
 # Health check
+# Check if server is responding (404 is acceptable - means server is up)
+# Use --no-check-certificate since we're using self-signed certs
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider https://localhost:11000/ || exit 1
+    CMD wget --no-verbose --tries=1 --no-check-certificate https://localhost:11000/v1/users -O /dev/null 2>&1 | grep -q '404\|200' || exit 1
 
-# Run the application
-CMD ["./grpc-example", "-host", "0.0.0.0", "-insecure"]
+# Run the application with TLS enabled
+CMD ["./grpc-example", "-host", "0.0.0.0", "-cert", "certs/server.crt", "-key", "certs/server.key"]

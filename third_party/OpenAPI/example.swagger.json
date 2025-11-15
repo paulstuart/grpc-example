@@ -360,7 +360,8 @@
               "type": "string"
             },
             "email": {
-              "type": "string"
+              "type": "string",
+              "title": "Contact information (both optional, real-world users typically have both)"
             },
             "phone": {
               "type": "string"
@@ -541,7 +542,8 @@
           "type": "string"
         },
         "email": {
-          "type": "string"
+          "type": "string",
+          "title": "Contact information (both optional, real-world users typically have both)"
         },
         "phone": {
           "type": "string"
