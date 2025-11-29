@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"flag"
 	"html/template"
@@ -11,7 +12,30 @@ import (
 
 	"github.com/paulstuart/grpc-example/ux/client"
 	"github.com/paulstuart/grpc-example/ux/handlers"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 )
+
+func initTracer() *sdktrace.TracerProvider {
+	exporter, err := stdouttrace.New(stdouttrace.WithPrettyPrint())
+	if err != nil {
+		log.Fatal(err)
+	}
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithBatcher(exporter),
+		sdktrace.WithResource(resource.NewWithAttributes(
+			semconv.SchemaURL,
+			semconv.ServiceName("frontend-service"),
+			attribute.String("environment", "development"),
+		)),
+	)
+	otel.SetTracerProvider(tp)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
+	return tp
+}
 
 // TODO: it would be handy to be able to switch between embedded and filesystem templates based on a flag
 // TODO: also perhaps have a watch mode for development that reloads templates on change
@@ -33,6 +57,16 @@ func main() {
 	if *jwtToken == "" {
 		*jwtToken = os.Getenv("JWT_TOKEN")
 	}
+
+	tp := initTracer()
+	defer func() {
+		if err := tp.Shutdown(context.Background()); err != nil {
+			log.Printf("Error shutting down tracer provider: %v", err)
+		}
+	}()
+
+	// Set the global propagator for context propagation NOTE: this was copied from AI and needs review
+	otel.SetTextMapPropagator(propagation.TraceContext{})
 
 	// Create API client
 	apiClient := client.NewClient(*apiURL, *jwtToken)

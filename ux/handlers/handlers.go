@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/paulstuart/grpc-example/ux/client"
+	"go.opentelemetry.io/otel"
 )
 
 // Handler manages HTTP requests
@@ -87,6 +88,11 @@ func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
 
 // GetUser returns a single user
 func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
+
+	ctx, span := otel.Tracer("frontend-tracer").Start(r.Context(), "call-backend-handler")
+	defer span.End()
+	_ = ctx
+
 	idStr := r.PathValue("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
